@@ -34,6 +34,9 @@ BasicListView(items: accounts, config: .house) { account in
                               isDestructive: true) { confirmDelete(account) },
     ]
 }
+.rowContextMenu { account in
+    Button("Copy name") { copy(account.name) }
+}
 .onRowTap { account in openDetail(account) }
 .onRefresh { try await api.reload() }
 .onLoadMore { try await api.nextPage() }
@@ -46,6 +49,8 @@ let sections = Dictionary(grouping: transactions, by: \.day)
     .map { day, txns in
         BasicListSection(section: day, items: txns, itemID: \.id) {
             TransactionDayHeader(day)      // sticky khi cuộn
+        } footer: {
+            TransactionDayFooter(day)      // tuỳ chọn — nhóm không cần thì dùng init không footer
         }
     }
 
@@ -80,7 +85,8 @@ file wiring đó, không rải giá trị ở từng màn.
 | `.basicListHeader(mode:_:)` | Header đầu list — `.scrollsWithContent` (cuộn cùng) hoặc `.pinnedTop` (ghim đỉnh) |
 | `.basicListEmptyState(_:)` | Hero rỗng chạy TRONG list (giữ identity list giữa 2 pha rỗng/có data) |
 | `.basicListFooter(_:)` | Nội dung đáy — sau rows, trước sentinel load-more |
-| `.rowSwipeActions(_:)` | Handler trả `[BasicListSwipeAction]` cho từng item |
+| `.rowSwipeActions(edge:_:)` | Handler trả `[BasicListSwipeAction]` cho từng item — `.trailing` mặc định; gọi thêm lần nữa với `.leading` cho swipe mép trái |
+| `.rowContextMenu(_:)` | Menu tap-giữ theo item — không chiếm tap thường lẫn cử chỉ swipe |
 | `.onRowTap(_:)` | Tap toàn vùng row (contentShape) — không chiếm cử chỉ swipe |
 | `.onMoveRows(_:)` | Kéo-thả sắp xếp lại flat list — handle chỉ hiện khi `editMode` `.active` |
 | `.basicEditMode(_:)` | Ghim `editMode` của List theo binding của screen (iOS-only) |
@@ -92,7 +98,7 @@ dựng list đều dùng được:
 
 | Type/helper | Nghĩa |
 |---|---|
-| `BasicListSection` | Một nhóm + header sticky; header lưu CLOSURE (chỉ dựng khi group thật sự render) |
+| `BasicListSection` | Một nhóm + header sticky + footer tuỳ chọn; header/footer lưu CLOSURE (chỉ dựng khi group thật sự render) |
 | `BasicListSwipeAction` | Một swipe action; tint destructive lấy từ config, không nằm trong action |
 | `BasicListSpacer(height:)` | Row trong suốt cao `height` — đệm cuộn-cùng-nội dung |
 | `BasicListScrollSentinel` | Row 1pt fire `onAppear` — dùng như row cuối khi screen tự dựng list + load-more riêng |

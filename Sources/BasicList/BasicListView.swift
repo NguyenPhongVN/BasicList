@@ -46,6 +46,7 @@ public struct BasicListView<Item, Content: View>: View {
     private struct Group: Identifiable {
         let section: AnyHashable
         let header: () -> AnyView
+        let footer: (() -> AnyView)?
         let rows: [Row]
         var id: AnyHashable { section }
     }
@@ -62,6 +63,8 @@ public struct BasicListView<Item, Content: View>: View {
     private var emptyStateBuilder: (() -> AnyView)?
     private var footerBuilder: (() -> AnyView)?
     private var rowSwipeHandler: ((Item) -> [BasicListSwipeAction])?
+    private var rowSwipeLeadingHandler: ((Item) -> [BasicListSwipeAction])?
+    private var rowContextMenuHandler: ((Item) -> AnyView)?
     private var rowTapHandler: ((Item) -> Void)?
     private var onMoveHandler: ((IndexSet, Int) -> Void)?
     #if os(iOS)
@@ -98,7 +101,8 @@ public struct BasicListView<Item, Content: View>: View {
         self.config = config
     }
 
-    /// Danh sách section, mỗi nhóm một sticky header (`section.header`).
+    /// Danh sách section, mỗi nhóm một sticky header (`section.header`)
+    /// và footer tuỳ chọn (`section.footer`).
     public init(
         sections: [BasicListSection<Item>],
         config: BasicListConfig,
@@ -109,6 +113,7 @@ public struct BasicListView<Item, Content: View>: View {
             Group(
                 section: section.section,
                 header: section.header,
+                footer: section.footer,
                 rows: section.items.map { Row(item: $0, id: section.itemID($0)) })
         }
         self.rows = []
@@ -155,9 +160,30 @@ public struct BasicListView<Item, Content: View>: View {
 
     /// Swipe actions trên từng dòng — data in, events out: handler trả
     /// danh sách action của mỗi item, list vẽ nút và hồi báo handler.
-    public func rowSwipeActions(_ handler: @escaping (Item) -> [BasicListSwipeAction]) -> Self {
+    /// `edge` mặc định `.trailing`; gọi thêm một lần với `.leading` để
+    /// có swipe từ mép trái — hai edge dùng chung được, full swipe hoạt
+    /// động như nhau (handler là hand-off confirm, không xoá row).
+    public func rowSwipeActions(
+        edge: HorizontalEdge = .trailing,
+        _ handler: @escaping (Item) -> [BasicListSwipeAction]
+    ) -> Self {
         var copy = self
-        copy.rowSwipeHandler = handler
+        if edge == .leading {
+            copy.rowSwipeLeadingHandler = handler
+        } else {
+            copy.rowSwipeHandler = handler
+        }
+        return copy
+    }
+
+    /// Context menu tap-giữ trên từng dòng — data in, events out: menu
+    /// dựng theo item, không chiếm tap thường lẫn cử chỉ swipe của row.
+    /// VoiceOver: SwiftUI contextMenu tự expose qua rotor actions.
+    public func rowContextMenu(
+        @ViewBuilder _ handler: @escaping (Item) -> some View
+    ) -> Self {
+        var copy = self
+        copy.rowContextMenuHandler = { item in AnyView(handler(item)) }
         return copy
     }
 
@@ -264,6 +290,10 @@ public struct BasicListView<Item, Content: View>: View {
                     ForEach(group.rows) { rowView(_: $0) }
                 } header: {
                     group.header().basicListRowStyle()
+                } footer: {
+                    // Nhóm không khai báo footer → EmptyView: List không
+                    // render footer row nào cho nhóm đó.
+                    (group.footer?() ?? AnyView(EmptyView())).basicListRowStyle()
                 }
             }
         } else if let onMoveHandler {
@@ -282,10 +312,16 @@ public struct BasicListView<Item, Content: View>: View {
         isSectioned ? groups.allSatisfy(\.rows.isEmpty) : rows.isEmpty
     }
 
-    @ViewBuilder
     private func rowView(_ row: Row) -> some View {
+        contextLayer(row.item, tapLayer(row, baseRow(row)))
+    }
+
+    /// Layer tap: có handler thì row nhận tap toàn vùng + VoiceOver
+    /// "nút"; không handler thì giữ nguyên trạng thái row.
+    @ViewBuilder
+    private func tapLayer(_ row: Row, _ view: some View) -> some View {
         if let rowTapHandler {
-            baseRow(row)
+            view
                 // Hit area toàn chiều rộng row — cell chỉ phủ phần nội
                 // dung, tap vào vùng đệm cũng phải tính.
                 .contentShape(Rectangle())
@@ -296,7 +332,18 @@ public struct BasicListView<Item, Content: View>: View {
                 .accessibilityAddTraits(.isButton)
                 .accessibilityAction { rowTapHandler(row.item) }
         } else {
-            baseRow(row)
+            view
+        }
+    }
+
+    /// Layer context menu: menu dựng theo item, tap-giữ — không chiếm
+    /// tap thường lẫn cử chỉ swipe của row.
+    @ViewBuilder
+    private func contextLayer(_ item: Item, _ view: some View) -> some View {
+        if let rowContextMenuHandler {
+            view.contextMenu { rowContextMenuHandler(item) }
+        } else {
+            view
         }
     }
 
@@ -305,6 +352,11 @@ public struct BasicListView<Item, Content: View>: View {
             .basicListRowStyle()
             .basicRowSwipeActions(
                 rowSwipeHandler?(row.item),
+                edge: .trailing,
+                destructiveTint: config.destructiveActionTint)
+            .basicRowSwipeActions(
+                rowSwipeLeadingHandler?(row.item),
+                edge: .leading,
                 destructiveTint: config.destructiveActionTint)
     }
 }
@@ -348,10 +400,11 @@ private extension View {
     @ViewBuilder
     func basicRowSwipeActions(
         _ actions: [BasicListSwipeAction]?,
+        edge: HorizontalEdge,
         destructiveTint: Color
     ) -> some View {
         if let actions, !actions.isEmpty {
-            self.swipeActions(edge: .trailing, allowsFullSwipe: true) {
+            self.swipeActions(edge: edge, allowsFullSwipe: true) {
                 // Id theo vị trí: hai action trùng title vẫn là hai nút
                 // riêng (id \.title sẽ đụng nhau → ForEach undefined).
                 ForEach(Array(actions.enumerated()), id: \.offset) { _, action in
@@ -551,7 +604,7 @@ private struct FlatListPreview: View {
             .basicListHeader {
                 PreviewHeader(
                     title: "Demo list",
-                    subtitle: "Swipe left · tap to remove · scroll to bottom to load more")
+                    subtitle: "Swipe left · tap-hold for menu · tap to remove · scroll to bottom to load more")
             }
             .basicListEmptyState {
                 VStack(spacing: 8) {
@@ -566,6 +619,9 @@ private struct FlatListPreview: View {
             }
             .rowSwipeActions { _ in
                 [BasicListSwipeAction(title: "Delete", systemImage: "trash", isDestructive: true) {}]
+            }
+            .rowContextMenu { item in
+                Button("Copy \"\(item.title)\"") {}
             }
             .onRowTap { tapped in
                 items.removeAll { $0.id == tapped.id }
@@ -606,6 +662,10 @@ private struct SectionedListPreview: View {
             fixtureItem(at: 7), fixtureItem(at: 3), fixtureItem(at: 1),
         ], itemID: \.id) {
             sectionHeader("TODAY", count: 3)
+        } footer: {
+            Text("End of TODAY — footer per group")
+                .font(.system(.caption2, design: .rounded))
+                .foregroundStyle(.secondary)
         },
         BasicListSection(section: "Yesterday", items: [
             fixtureItem(at: 5), fixtureItem(at: 6),
@@ -619,7 +679,7 @@ private struct SectionedListPreview: View {
             .basicListHeader {
                 PreviewHeader(
                     title: "Day groups",
-                    subtitle: "Sticky headers pin while scrolling")
+                    subtitle: "Sticky headers pin while scrolling · optional group footer")
             }
             .background(Color.secondary.opacity(0.12))
     }
@@ -650,6 +710,9 @@ private struct FewItemsPreview: View {
                 [BasicListSwipeAction(
                     title: "Delete \(item.title)", systemImage: "trash",
                     isDestructive: true) {}]
+            }
+            .rowSwipeActions(edge: .leading) { _ in
+                [BasicListSwipeAction(title: "Pin", systemImage: "pin.fill") {}]
             }
             .onRowTap { tapped in
                 items.removeAll { $0.id == tapped.id }

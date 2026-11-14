@@ -25,6 +25,9 @@ public enum BasicListHeaderMode {
 public struct BasicListSection<Item> {
     package let section: AnyHashable
     package let header: () -> AnyView
+    /// Footer nhóm — nil khi không khai báo: List không render footer
+    /// row nào cho nhóm đó.
+    package let footer: (() -> AnyView)?
     package let items: [Item]
     package let itemID: (Item) -> AnyHashable
 
@@ -38,6 +41,23 @@ public struct BasicListSection<Item> {
         self.items = items
         self.itemID = { item in AnyHashable(itemID(item)) }
         self.header = { AnyView(header()) }
+        self.footer = nil
+    }
+
+    /// Footer nhóm — đối xứng với header: render sau các item của nhóm,
+    /// cuộn cùng nội dung.
+    public init(
+        section: any Hashable,
+        items: [Item],
+        itemID: @escaping (Item) -> any Hashable,
+        @ViewBuilder header: @escaping () -> some View,
+        @ViewBuilder footer: @escaping () -> some View
+    ) {
+        self.section = AnyHashable(section)
+        self.items = items
+        self.itemID = { item in AnyHashable(itemID(item)) }
+        self.header = { AnyView(header()) }
+        self.footer = { AnyView(footer()) }
     }
 }
 

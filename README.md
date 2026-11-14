@@ -10,7 +10,9 @@ Package độc lập, thuần SwiftUI — **không đọc design layer của app
 - ✅ Header 2 mode: lướt cùng nội dung (`.scrollsWithContent`) hoặc ghim đỉnh (`.pinnedTop`)
 - ✅ Empty-state chạy **trong** list (giữ identity list giữa hai pha rỗng/có data)
 - ✅ Footer cuộn cùng nội dung như một section thật
-- ✅ Swipe actions per-row (data in, events out), full-swipe, tint destructive theo config
+- ✅ Swipe actions per-row (data in, events out) — **cả hai mép** trái/phải (`edge: .leading`), full-swipe, tint destructive theo config
+- ✅ Context menu tap-giữ theo row — không chiếm tap thường lẫn swipe
+- ✅ Footer cho **từng section** — đối xứng với sticky header
 - ✅ Row tap toàn vùng, VoiceOver đầy đủ (button trait + accessibility actions)
 - ✅ Pull-to-refresh (lỗi handler tự xử lý trong handler — spinner tự kết thúc)
 - ✅ Load-more liên tục: probe geometry trên thân List + sentinel bù list ngắn
@@ -75,6 +77,8 @@ BasicListView(items: accounts, id: \.name, config: .house) { account in
 let sections: [BasicListSection<Transaction>] = [
     BasicListSection(section: "Today", items: todays, itemID: \.id) {
         DayHeader("TODAY")          // sticky khi cuộn
+    } footer: {
+        DayFooter("TODAY")          // tuỳ chọn — nhóm không cần thì dùng init không footer
     },
     BasicListSection(section: "Yesterday", items: yesterdays, itemID: \.id) {
         DayHeader("YESTERDAY")
@@ -95,12 +99,18 @@ BasicListView(items: transactions, config: .house) { TransactionRowView($0) }
     .basicListHeader { AccountBalanceHeader() }        // hoặc .basicListHeader(mode: .pinnedTop) { ... }
     .basicListEmptyState { EmptyHero() }               // list rỗng
     .basicListFooter { SuggestionCategories() }        // đáy list
-    .rowSwipeActions { transaction in                    // swipe trái
+    .rowSwipeActions { transaction in                    // swipe trái (mặc định .trailing)
         [
             BasicListSwipeAction(title: "Delete", systemImage: "trash", isDestructive: true) {
                 vm.delete(transaction)
             },
         ]
+    }
+    .rowSwipeActions(edge: .leading) { _ in              // thêm swipe mép trái
+        [BasicListSwipeAction(title: "Pin", systemImage: "pin.fill") { vm.pin($0) }]
+    }
+    .rowContextMenu { transaction in                     // tap-giữ mở menu
+        Button("Copy") { vm.copy(transaction) }
     }
     .onRowTap { vm.open($0) }
     .onRefresh { try await api.reload() }
@@ -178,7 +188,7 @@ extension BasicListConfig {
 | `BasicListView` | Engine chính — flat & sectioned |
 | `BasicPlainList` | List `.plain` trần — nền của mọi list house |
 | `BasicListConfig` | Màu/thông số truyền vào |
-| `BasicListSection` | Một nhóm + sticky header |
+| `BasicListSection` | Một nhóm + sticky header + footer tuỳ chọn |
 | `BasicListSwipeAction` | Mô tả một swipe action |
 | `BasicListHeaderMode` | `.scrollsWithContent` / `.pinnedTop` |
 | `BasicListSpacer` | Spacer trong suốt cuộn cùng nội dung |
