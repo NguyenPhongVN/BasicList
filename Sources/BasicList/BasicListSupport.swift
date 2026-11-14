@@ -52,18 +52,22 @@ public enum BasicListLoadMoreMode: Equatable, Sendable {
 @MainActor
 package final class BasicListLoadGate {
 
-    /// Measured duplicate sources land within ~400 ms of the primary fire.
-    package static let cooldown: TimeInterval = 0.4
+    /// Cooldown window between two fires. Injectable so tests don't wait on
+    /// the production value — production uses the measured default: duplicate
+    /// sources land 1–400 ms apart (`Docs/LoadMoreVerification.md` F2/F3).
+    package let cooldown: TimeInterval
 
     private var lastFireAt: Date?
 
-    package init() {}
+    package init(cooldown: TimeInterval = 0.4) {
+        self.cooldown = cooldown
+    }
 
     /// Returns true when this call may fire (and records the fire); false
     /// while still inside the cooldown window.
     package func tryFire() -> Bool {
         let now = Date()
-        if let last = lastFireAt, now.timeIntervalSince(last) < Self.cooldown {
+        if let last = lastFireAt, now.timeIntervalSince(last) < cooldown {
             return false
         }
         lastFireAt = now

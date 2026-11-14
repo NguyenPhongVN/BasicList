@@ -573,7 +573,7 @@ private struct BasicListBottomProbeModifier: ViewModifier {
                         // Duplicates blocked the same way collapse on the
                         // retry (the first one consumes the window).
                         Task {
-                            try? await Task.sleep(for: .seconds(BasicListLoadGate.cooldown))
+                            try? await Task.sleep(for: .seconds(gate.cooldown))
                             guard let probe = latestProbe,
                                   probe.distanceFromBottom <= threshold(for: probe),
                                   gate.tryFire()

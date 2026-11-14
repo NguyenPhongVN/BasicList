@@ -117,6 +117,11 @@ struct VocabularyTests {
         #expect(BasicListScrollSentinel.defaultBottomThreshold == 600)
     }
 
+    @Test("Default load-more mode constant — pixelThreshold of the shared 600pt")
+    func defaultLoadMoreMode() {
+        #expect(BasicListLoadMoreMode.pixelDefault == .pixelThreshold(600))
+    }
+
     @Test("Header mode has both cases — scrolls with content and pinned to top")
     func headerModeCases() {
         let scrolls: BasicListHeaderMode = .scrollsWithContent
@@ -136,5 +141,29 @@ struct VocabularyTests {
     @Test("Spacer keeps the height passed in")
     func spacerKeepsHeight() {
         #expect(BasicListSpacer(height: 42).height == 42)
+    }
+}
+
+@MainActor
+struct BasicListLoadGateTests {
+
+    @Test("tryFire inside the cooldown window — second call is blocked")
+    func blocksWithinWindow() {
+        let gate = BasicListLoadGate(cooldown: 5)
+        #expect(gate.tryFire(), "first call must fire")
+        #expect(!gate.tryFire(), "second call inside the window must be blocked")
+    }
+
+    @Test("tryFire past the cooldown window — fires again")
+    func firesAfterWindow() async throws {
+        let gate = BasicListLoadGate(cooldown: 0.05)
+        #expect(gate.tryFire())
+        try await Task.sleep(for: .seconds(0.1))
+        #expect(gate.tryFire(), "call past the window must fire")
+    }
+
+    @Test("Production default cooldown — 0.4 s (measured duplicate window)")
+    func productionDefaultCooldown() {
+        #expect(BasicListLoadGate().cooldown == 0.4)
     }
 }
