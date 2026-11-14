@@ -52,9 +52,14 @@ public struct BasicListView<Item, Content: View>: View {
         var id: AnyHashable { section }
     }
 
-    private let isSectioned: Bool
-    private let groups: [Group]
-    private let rows: [Row]
+    /// The one data shape — flat rows or sectioned groups. One source of
+    /// truth instead of the old flag + two arrays (one always empty).
+    private enum Shape {
+        case flat([Row])
+        case sectioned([Group])
+    }
+
+    private let shape: Shape
     private let content: (Item) -> Content
     /// Colors/metrics passed in by the caller (see `BasicListConfig`) — the
     /// engine never reads design values by itself.
@@ -88,9 +93,7 @@ public struct BasicListView<Item, Content: View>: View {
         config: BasicListConfig,
         @ViewBuilder content: @escaping (Item) -> Content
     ) where Item: Identifiable {
-        self.isSectioned = false
-        self.groups = []
-        self.rows = items.map { Row(item: $0, id: $0.id) }
+        self.shape = .flat(items.map { Row(item: $0, id: $0.id) })
         self.content = content
         self.config = config
     }
@@ -104,9 +107,7 @@ public struct BasicListView<Item, Content: View>: View {
         config: BasicListConfig,
         @ViewBuilder content: @escaping (Item) -> Content
     ) {
-        self.isSectioned = false
-        self.groups = []
-        self.rows = items.map { Row(item: $0, id: AnyHashable(id($0))) }
+        self.shape = .flat(items.map { Row(item: $0, id: AnyHashable(id($0))) })
         self.content = content
         self.config = config
     }
@@ -122,15 +123,13 @@ public struct BasicListView<Item, Content: View>: View {
         config: BasicListConfig,
         @ViewBuilder content: @escaping (Item) -> Content
     ) {
-        self.isSectioned = true
-        self.groups = sections.map { section in
+        self.shape = .sectioned(sections.map { section in
             Group(
                 section: section.section,
                 header: section.header,
                 footer: section.footer,
                 rows: section.items.map { Row(item: $0, id: section.itemID($0)) })
-        }
-        self.rows = []
+        })
         self.content = content
         self.config = config
     }
@@ -324,38 +323,45 @@ public struct BasicListView<Item, Content: View>: View {
 
     @ViewBuilder
     private var rowsList: some View {
-        // Emptiness must be computed for the EXACT shape in use: a sectioned
-        // list keeps its data in `groups` (`rows` is always empty) — checking
-        // `rows.isEmpty` on a sectioned list with data would wrongly show the
-        // empty state.
+        // Emptiness must be computed for the EXACT shape in use (see isEmpty):
+        // a sectioned list with groups would wrongly check a flat row array.
         if isEmpty, let emptyStateBuilder {
             emptyStateBuilder().basicListRowStyle()
-        } else if isSectioned {
-            ForEach(groups) { group in
-                Section {
-                    ForEach(group.rows) { rowView(_: $0) }
-                } header: {
-                    group.header().basicListRowStyle()
-                } footer: {
-                    // A group without a declared footer → EmptyView: the List
-                    // renders no footer row for that group.
-                    (group.footer?() ?? AnyView(EmptyView())).basicListRowStyle()
+        } else {
+            switch shape {
+            case .sectioned(let groups):
+                ForEach(groups) { group in
+                    Section {
+                        ForEach(group.rows) { rowView(_: $0) }
+                    } header: {
+                        group.header().basicListRowStyle()
+                    } footer: {
+                        // A group without a declared footer → EmptyView: the List
+                        // renders no footer row for that group.
+                        (group.footer?() ?? AnyView(EmptyView())).basicListRowStyle()
+                    }
+                }
+            case .flat(let rows):
+                if let onMoveHandler {
+                    // Flat + reorder: `.onMove` on the data ForEach itself — the drag
+                    // handle appears when `editMode` is `.active`, a move reports back
+                    // to the handler (the store handles local move + persistence).
+                    ForEach(rows) { rowView(_: $0) }
+                        .onMove(perform: onMoveHandler)
+                } else {
+                    ForEach(rows) { rowView(_: $0) }
                 }
             }
-        } else if let onMoveHandler {
-            // Flat + reorder: `.onMove` on the data ForEach itself — the drag
-            // handle appears when `editMode` is `.active`, a move reports back
-            // to the handler (the store handles local move + persistence).
-            ForEach(rows) { rowView(_: $0) }
-                .onMove(perform: onMoveHandler)
-        } else {
-            ForEach(rows) { rowView(_: $0) }
         }
     }
 
-    /// Whether the list has no items to show — per the shape in use.
+    /// Whether the list has no items to show — per the shape in use: a
+    /// sectioned list is empty when EVERY group is empty.
     private var isEmpty: Bool {
-        isSectioned ? groups.allSatisfy(\.rows.isEmpty) : rows.isEmpty
+        switch shape {
+        case .flat(let rows): return rows.isEmpty
+        case .sectioned(let groups): return groups.allSatisfy(\.rows.isEmpty)
+        }
     }
 
     private func rowView(_ row: Row) -> some View {
