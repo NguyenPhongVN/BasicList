@@ -37,10 +37,23 @@ public struct BasicPlainList<Content: View>: View {
             BasicListSpacer(height: config.bottomClearance)
         }
         .listStyle(.plain)
-        .scrollContentBackground(.hidden)
+        .basicListBackgroundHidden()
         .contentMargins(.top, 0, for: .scrollContent)
         .contentMargins(.horizontal, 0, for: .scrollContent)
         .environment(\.defaultMinListRowHeight, 0)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+private extension View {
+    /// `scrollContentBackground` is unavailable on watchOS/tvOS — their lists
+    /// manage backgrounds through platform chrome instead.
+    @ViewBuilder
+    func basicListBackgroundHidden() -> some View {
+        #if os(tvOS) || os(watchOS)
+        self
+        #else
+        self.scrollContentBackground(.hidden)
+        #endif
     }
 }

@@ -126,23 +126,30 @@ lists; avoid the combination until it's needed and tested.
    and `.pagesAhead(Int)` are mutually exclusive by type; the engine doesn't measure page
    height (data in / events out) — the unit of measure is the viewport.
 
-### Measured behavior — simulator baseline 2026-11-14
+### Measured behavior — post-fix verification 2026-11-14
 ([Docs/LoadMoreVerification.md](../../Docs/LoadMoreVerification.md))
 
-- The probe DOES fire on attach for lists already inside the region (the zero→settled
-  transition is a geometry change) — the sentinel is a backstop, not the main short-list
-  mechanism.
-- Each region entry currently fires ~2 loads (the transition + List's content-size
-  estimate steps + the sentinel), sequentially 1–400 ms apart → a VM-side `inFlight`
-  guard does NOT block them — measured 2.1–2.2 loads per entry.
-- Attaching a short list fires twice → 2 pages load at open.
-- The current distance is biased by how the list is embedded (± insets) — a list without
-  bottom insets looks correct; a list under a tab bar fires ~1× bottom-inset early.
-- Chain / exhausted / idle stop correctly — no infinite loop (measured idle-fires=0).
+- The trigger lands exactly at the configured threshold on every embedding —
+  the distance comes from `visibleRect` (Apple's own primitive, computed from
+  offset + insets + container); the old manual algebra was biased by how the
+  list was embedded (measured 782/724/702/844 for `containerSize`).
+- One fire per cooldown window (400 ms) across ALL sources (probe transition +
+  List content-size estimate steps + sentinel) — measured duplicates arrived
+  1–400 ms apart and are now collapsed. A chain fire blocked by the window
+  retries once against FRESH geometry — continuous loading never strands, and
+  a retry whose region check fails is discarded.
+- Chain loads continue while the grown list stays inside the region and stop
+  when a page push exits it (or pages run out) — idle is silent.
+- Attaching a short list fires once (gate collapses the transition + sentinel
+  duplicates); the chain may load further pages while the list remains inside
+  the region — that is the designed prefetch, not a duplicate.
+- A page attach grows contentSize (rows + List estimate drift, measured
+  +1086 pt) which can push a stationary user out of the region — the chain
+  stops and the next scroll delivers the remaining page.
 
-⚠️ The points above are measured known issues awaiting a fix (plan + acceptance criteria
-pre-registered in the verification doc). Any change to the probe/sentinel MUST re-run the
-harness and compare against the pre-registered table in that document.
+Any change to the probe/sentinel MUST re-run the simulator suite
+(`Tests/BasicListTests/LoadMoreSimulatorTests.swift`) and compare against the
+tables in the verification doc.
 
 ## 6. Swipe actions — mandatory rules
 

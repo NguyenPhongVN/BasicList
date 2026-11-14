@@ -29,9 +29,11 @@ Standalone package, pure SwiftUI — **reads no app design layer**: every color/
 | Swift | tools 6.3, Swift 6 mode, `ApproachableConcurrency` |
 | Dependencies | **NONE** — pure SwiftUI |
 
-> ⚠️ **tvOS & watchOS** are declared in `Package.swift` but currently **do not build**
-> (`listRowSeparator`, `swipeActions`, `scrollContentBackground` are unavailable there).
-> iOS and macOS build fine. Repro + status: [Docs/LoadMoreVerification.md](Docs/LoadMoreVerification.md) §5.
+> **Platform note**: tvOS & watchOS build (verified via `xcodebuild` against the
+> simulator SDKs) but with reduced behavior — `swipeActions` doesn't exist there, so
+> rows expose their actions as accessibility actions only; `listRowSeparator` and
+> `scrollContentBackground` are likewise no-ops. Details:
+> [Docs/LoadMoreVerification.md](Docs/LoadMoreVerification.md) §5.
 
 ## Installation
 

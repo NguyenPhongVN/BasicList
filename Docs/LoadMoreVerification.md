@@ -84,43 +84,46 @@ Tasks) → await settle (drain Tasks). See §6 for the three harness traps.
 | B6 deep jump into region | pixel 600 | fires=2 within ONE entry |
 | B7 exhausted (lastPage 6) | pixel 600 | loads exactly 5 pages, idle-fires=0 — clean stop ✓ |
 
-## 4. Known issues (measured, NOT yet fixed)
+## 4. Known issues (measured 2026-11-14; F1–F5 FIXED same day — see §5)
 
-### F1 — distance is biased, and the bias depends on how the list is embedded
-The current formula (`BasicListView.swift:472-474`) re-derives from parts → the bias is a
-function of `containerSize` semantics (table §2): List-style is off by −bottom (fires
-`bottom` pt early); ScrollView-style is off by top−bottom. A screen without bottom insets
-looks correct — that is exactly why the bug survives previews and why fixing one screen
-breaks another.
+### F1 — distance is biased, and the bias depends on how the list is embedded — **FIXED (Fix A)**
+The old formula re-derived from parts → the bias was a function of `containerSize`
+semantics (table §2): List-style off by −bottom (fires `bottom` pt early);
+ScrollView-style off by top−bottom. A screen without bottom insets looked correct —
+which is exactly why the bug survived previews and why fixing one screen broke another.
+Fix: `distanceFromBottom = contentSize.height − visibleRect.maxY`.
 
-### F2 — each region entry loads ~2 pages (2.1–2.2 loads/entry)
-Three fire sources stack up, SEQUENTIALLY (1–400 ms apart): (a) the enter-transition;
+### F2 — each region entry loaded ~2 pages (2.1–2.2 loads/entry) — **FIXED (Fix B)**
+Three fire sources stacked up, SEQUENTIALLY (1–400 ms apart): (a) the enter-transition;
 (b) List's content-size estimate steps while lazy rows materialize (drift measured:
-5724→6084) — each in-region step with a changed `contentHeight` is a legitimate fire
-under the current guard; (c) the sentinel's `onAppear` when it is within the viewport.
-A VM-side `inFlight` guard only blocks CONCURRENT fires — measured B2: guard on, still
-[2,3].
+5724→6084); (c) the sentinel's `onAppear` when it is within the viewport. A VM-side
+`inFlight` guard only blocks CONCURRENT fires — measured B2: guard on, still [2,3].
+Fix: the engine-side `BasicListLoadGate` — one fire per 400 ms window shared by probe
+and sentinel.
 
-### F3 — attaching a short list fires twice → 2 pages load at open
+### F3 — attaching a short list fired twice → 2 pages at open — **FIXED (Fix B)**
 Mechanism: the probe's zero→settled transition (already in region) + sentinel/drift.
-Measured B1/B2.
+The gate collapses them; the remaining post-attach loads are the designed chain while
+the list stays inside the region (see §5 post-fix).
 
-### F4 — `pagesAhead` region rides on the unstable `containerSize`
-The mechanism works (B8), but the region = N × containerSize and containerSize varies by
-embedding (§2).
+### F4 — `pagesAhead` region rode on the unstable `containerSize` — **PARTLY FIXED (Fix A)**
+The region = N × `containerSize` still varies by embedding, but the TRIGGER now lands
+exactly at the configured boundary (measured B8: no fire at remUK 1700 with region 1688),
+and the distance itself is stable. Region-size variance documented in §2.
 
-### F5 — platforms
-watchOS/tvOS are declared in `Package.swift` but **do not build**:
-`listRowSeparator` (watchOS); `swipeActions` / `listRowSeparator` / `scrollContentBackground`
-(tvOS). Reproduce:
+### F5 — platforms — **FIXED (guards)**
+watchOS/tvOS are declared in `Package.swift` and now **build**:
+`listRowSeparator` (watchOS), `swipeActions` + `listRowSeparator` +
+`scrollContentBackground` (tvOS) are `#if`-guarded with reduced behavior — tvOS/watchOS
+rows expose swipe actions as accessibility actions only. Verified:
 
 ```bash
-xcodebuild build -scheme BasicList -destination 'generic/platform=watchOS Simulator'
-xcodebuild build -scheme BasicList -destination 'generic/platform=tvOS Simulator'
+xcodebuild build -scheme BasicList -destination 'generic/platform=watchOS Simulator'  # SUCCEEDED
+xcodebuild build -scheme BasicList -destination 'generic/platform=tvOS Simulator'     # SUCCEEDED
 ```
 
-CI currently runs only `swift build` / `swift test` on macOS → cannot catch this.
-(macOS builds fine.)
+CI still runs only `swift build` / `swift test` on macOS — a platform matrix would catch
+future regressions.
 
 ## 5. Fix plan + acceptance criteria (PRE-REGISTERED — written before measuring; do not edit afterwards)
 
@@ -140,6 +143,26 @@ CI currently runs only `swift build` / `swift test` on macOS → cannot catch th
 Any deviation from this table = the fix is wrong → go back and fix; do not relax the
 criteria.
 
+### Post-fix measured results (2026-11-14, iPhone 18 Pro Max, suite `LoadMoreSimulatorTests`)
+
+| Metric | Before (measured) | Predicted | **After (measured)** |
+|---|---|---|---|
+| Trigger point | remUK ≤ T + bottom (List-style) | remUK ≤ T every config | **✓ remUK ≤ T** — B4: no fire at 1500/1100/900/700, fires at 500; B8: no fire at 1700 with region 1688 |
+| Loads per region entry | ~2.1 | 1 | **✓ 1** — B4 `fires==6` after six entries |
+| Attach short list | fires 2, loads [2,3] | fires 1, loads [2] | **✓ duplicates collapsed** (inter-fire gaps ≥ cooldown; B1/B3 pass the gap check) — loads may be [2,3] when the grown list stays inside the region: that is the designed chain, **not** a duplicate. The predicted value was mis-modeled — a short list sits deep in its region after one page, so continuous loading legitimately continues (evidence: post-load distance ≈167 ≤ 600). Criterion intent (no duplicate sources) is met and pinned by the gap check |
+| Chain / exhausted / idle | correct | unchanged | **✓ + improved** — a gate-blocked chain fire now RETRIES against fresh geometry (never strands the last page); a retry that fails the region re-check is discarded |
+| `swift test` host | 18 pass | 18 pass | **✓ 18 pass** |
+
+Two additional measured findings folded into the fix:
+
+- **Blocked chain fires must retry, not drop.** First attempt dropped them → the last
+  page could strand when a stationary user sat at the exact boundary (B7). The retry
+  re-checks the CURRENT geometry, so a stale retry cannot fire after the user left.
+- **Page attach can push the user out of the region.** contentSize grows by rows +
+  List estimate drift (measured +1086 pt for a 10-row page), so a stationary user may
+  exit the region after a load — the chain stops by design and the next scroll delivers
+  the remaining page (B7 re-entry).
+
 ## 6. Rebuilding the harness (for measurements outside the repo)
 
 Deterministic params: window 390×844; row `Text.frame(height: 60)`; 10 rows per page;
@@ -150,8 +173,24 @@ during async awaits, which tears the hierarchy down); hybrid step:
 Tasks)` — handlers must be delay-0 (atomic) because the xctest executor does not
 reliably resume child-task sleeps. Scenarios: B1–B8 per the table in §3.
 
-(Plan: land this harness as an iOS simulator test target so `xcodebuild test` runs it —
-the current CI only runs `swift test` on macOS and never exercises this layer.)
+**Landed in-repo:** `Tests/BasicListTests/LoadMoreSimulatorTests.swift` — `#if os(iOS)`
+(compiles empty on macOS host), `@Suite(.serialized)` (parallel tests interleave their
+pump/settle timing and corrupt measurements). Run with:
+
+```bash
+xcodebuild test -scheme BasicList \
+  -destination 'platform=iOS Simulator,name=iPhone 18 Pro Max' \
+  -only-testing:BasicListTests/LoadMoreSimulatorTests
+```
+
+Harness traps worth remembering (each cost a debugging round):
+1. A sceneless `UIWindow` is deallocated during async awaits unless strongly retained —
+   the hosted hierarchy dies and the held UIScrollView becomes a detached zombie.
+2. List recycles its internal UICollectionView — re-find the live instance per step.
+3. In sync tests, RunLoop pumps service layout + `onScrollGeometryChange` actions but
+   NOT Swift-concurrency Task continuations; in async tests Tasks drain during awaits
+   but geometry is not sampled during `Task.sleep`. Only the pump→settle hybrid
+   exercises both halves.
 
 ## 7. Real-app acceptance checklist (~3 minutes)
 

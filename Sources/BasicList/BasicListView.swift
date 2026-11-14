@@ -75,6 +75,10 @@ public struct BasicListView<Item, Content: View>: View {
     private var onLoadMoreHandler: (() async -> Void)?
     private var loadMoreMode: BasicListLoadMoreMode =
         .pixelThreshold(BasicListScrollSentinel.defaultBottomThreshold)
+    /// Shared fire gate across the probe and the sentinel — collapses the
+    /// duplicate fires (transition + estimate steps + sentinel) into one per
+    /// cooldown window. One per list identity.
+    @State private var loadGate = BasicListLoadGate()
 
     /// Items that are already `Identifiable`.
     public init(
@@ -280,13 +284,14 @@ public struct BasicListView<Item, Content: View>: View {
                 footerBuilder().basicListRowStyle()
             }
             if let onLoadMoreHandler {
-                BasicListScrollSentinel(onLoadMore: onLoadMoreHandler)
+                BasicListScrollSentinel(onLoadMore: onLoadMoreHandler, gate: loadGate)
             }
         }
         .basicListRefreshable(onRefreshHandler)
-        .basicListBottomProbe(
+        .modifier(BasicListBottomProbeModifier(
             mode: loadMoreMode,
-            onLoadMoreHandler)
+            gate: loadGate,
+            handler: onLoadMoreHandler))
         #if os(iOS)
         .basicListEditMode(editModeBinding)
         #endif
@@ -424,29 +429,43 @@ private extension View {
         destructiveTint: Color
     ) -> some View {
         if let actions, !actions.isEmpty {
-            self.swipeActions(edge: edge, allowsFullSwipe: true) {
-                // Identity by position: two actions with the same title are
-                // still two separate buttons (id \.title would collide →
-                // undefined ForEach).
-                ForEach(Array(actions.enumerated()), id: \.offset) { _, action in
-                    Button {
-                        action.handler()
-                    } label: {
-                        Label(action.title, systemImage: action.systemImage)
+            #if os(watchOS) || os(tvOS)
+            // Swipe actions don't exist on watchOS/tvOS — expose
+            // accessibility actions only.
+            self
+                .basicRowSwipeAccessibility(actions)
+            #else
+            self
+                .swipeActions(edge: edge, allowsFullSwipe: true) {
+                    // Identity by position: two actions with the same title are
+                    // still two separate buttons (id \.title would collide →
+                    // undefined ForEach).
+                    ForEach(Array(actions.enumerated()), id: \.offset) { _, action in
+                        Button {
+                            action.handler()
+                        } label: {
+                            Label(action.title, systemImage: action.systemImage)
+                        }
+                        // Only destructive actions take the config tint — regular
+                        // actions keep the system default like the stock look. Do
+                        // NOT use role .destructive (see the doc above).
+                        .tint(action.isDestructive ? destructiveTint : nil)
                     }
-                    // Only destructive actions take the config tint — regular
-                    // actions keep the system default like the stock look. Do
-                    // NOT use role .destructive (see the doc above).
-                    .tint(action.isDestructive ? destructiveTint : nil)
                 }
-            }
-            .accessibilityActions {
-                ForEach(Array(actions.enumerated()), id: \.offset) { _, action in
-                    Button(action.title) { action.handler() }
-                }
-            }
+                .basicRowSwipeAccessibility(actions)
+            #endif
         } else {
             self
+        }
+    }
+
+    /// Swipe gestures don't exist for VoiceOver — every action must be
+    /// activatable from the rotor.
+    func basicRowSwipeAccessibility(_ actions: [BasicListSwipeAction]) -> some View {
+        self.accessibilityActions {
+            ForEach(Array(actions.enumerated()), id: \.offset) { _, action in
+                Button(action.title) { action.handler() }
+            }
         }
     }
 
@@ -465,45 +484,81 @@ private extension View {
     /// attaching (`contentHeight` changed) while still in the region — keeps
     /// loading until the distance exceeds the region or pages run out. For a
     /// short first page — not filling a screen yet — the
-    /// `BasicListScrollSentinel` backstops via `onAppear`. Duplicate fires
-    /// (probe + sentinel together) are blocked on the VM side:
-    /// `Paging.inFlight` blocks parallel loads, `exhausted` skips when out of
-    /// pages — the probe keeps no state, the action is stateless (old/new come
-    /// from the modifier itself).
-    @ViewBuilder
-    func basicListBottomProbe(
-        mode: BasicListLoadMoreMode,
-        _ handler: (() async -> Void)?
-    ) -> some View {
+    /// `BasicListScrollSentinel` backstops via `onAppear`.
+    ///
+    /// The gate (FIX B, F2/F3) collapses the duplicate sources (transition +
+    /// estimate steps + sentinel, measured 1–400 ms apart) to one fire per
+    /// cooldown window across the whole list. A legitimate chain fire that
+    /// lands inside the window is NOT dropped: it retries after the window
+    /// and re-checks the CURRENT geometry, so continuous loading never
+    /// strands (a page is never silently skipped) while a duplicate never
+    /// resurrects (the first retry consumes the window, the rest are
+    /// dropped, and a retry whose region check fails is discarded).
+}
+
+/// The load-more bottom probe modifier — stateful on purpose: it keeps the
+/// latest probe value so a gate-blocked chain fire can retry after the
+/// cooldown window against fresh geometry (see the gate doc).
+private struct BasicListBottomProbeModifier: ViewModifier {
+    let mode: BasicListLoadMoreMode
+    let gate: BasicListLoadGate
+    let handler: (() async -> Void)?
+
+    @State private var latestProbe: BasicListBottomProbe?
+
+    private func threshold(for probe: BasicListBottomProbe) -> CGFloat {
+        switch mode {
+        case .pixelThreshold(let points):
+            return points
+        case .pagesAhead(let screens):
+            return CGFloat(max(screens, 0)) * probe.viewportHeight
+        }
+    }
+
+    func body(content: Content) -> some View {
         if let handler {
-            onScrollGeometryChange(for: BasicListBottomProbe.self) { geometry in
-                BasicListBottomProbe(
-                    distanceFromBottom: geometry.contentSize.height
-                        - geometry.contentInsets.bottom
-                        - (geometry.contentOffset.y + geometry.containerSize.height),
-                    contentHeight: geometry.contentSize.height,
-                    viewportHeight: geometry.containerSize.height)
-            } action: { old, new in
-                // The mode decides the region: .pagesAhead → threshold in
-                // VIEWPORT units (screens) — ASDK-style leadingScreens
-                // prefetch, the region scales with the current viewport;
-                // .pixelThreshold → static pixel threshold.
-                let threshold: CGFloat
-                switch mode {
-                case .pixelThreshold(let points):
-                    threshold = points
-                case .pagesAhead(let screens):
-                    threshold = CGFloat(max(screens, 0)) * new.viewportHeight
+            content
+                .onScrollGeometryChange(for: BasicListBottomProbe.self) { geometry in
+                    BasicListBottomProbe(
+                        // FIX A (F1/F4): distance measured from Apple's own
+                        // visibleRect — computed by SwiftUI from offset+insets+
+                        // container. Manual algebra over the parts was biased by
+                        // how the list is embedded (containerSize semantics are
+                        // unstable across structures — measured 782/724/702/844).
+                        // visibleRect is 0 at the true bottom without insets and
+                        // −bottomInset with them — identical across embeddings.
+                        distanceFromBottom: geometry.contentSize.height
+                            - geometry.visibleRect.maxY,
+                        contentHeight: geometry.contentSize.height,
+                        viewportHeight: geometry.containerSize.height)
+                } action: { old, new in
+                    latestProbe = new
+                    let isNearBottom = new.distanceFromBottom <= threshold(for: new)
+                    let wasNearBottom = old.distanceFromBottom <= threshold(for: old)
+                    guard isNearBottom,
+                          !wasNearBottom || new.contentHeight != old.contentHeight
+                    else { return }
+                    if gate.tryFire() {
+                        Task { await handler() }
+                    } else {
+                        // Blocked by the cooldown window — a legitimate chain
+                        // fire (page attached while still in the region).
+                        // Retry after the window against the CURRENT geometry:
+                        // out of the region → discarded; still in → fires.
+                        // Duplicates blocked the same way collapse on the
+                        // retry (the first one consumes the window).
+                        Task {
+                            try? await Task.sleep(for: .seconds(BasicListLoadGate.cooldown))
+                            guard let probe = latestProbe,
+                                  probe.distanceFromBottom <= threshold(for: probe),
+                                  gate.tryFire()
+                            else { return }
+                            await handler()
+                        }
+                    }
                 }
-                let isNearBottom = new.distanceFromBottom <= threshold
-                let wasNearBottom = old.distanceFromBottom <= threshold
-                guard isNearBottom,
-                      !wasNearBottom || new.contentHeight != old.contentHeight
-                else { return }
-                Task { await handler() }
-            }
         } else {
-            self
+            content
         }
     }
 }

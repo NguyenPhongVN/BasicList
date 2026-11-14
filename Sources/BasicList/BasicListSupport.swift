@@ -30,6 +30,33 @@ public enum BasicListLoadMoreMode: Equatable, Sendable {
     case pagesAhead(Int)
 }
 
+/// Per-list load-more gate — at most ONE fire per cooldown window across all
+/// trigger sources (probe transition, List content-size estimate steps,
+/// sentinel `onAppear`). Measured duplicates arrive 1–400 ms apart
+/// (`Docs/LoadMoreVerification.md` F2/F3) — a window gate collapses them to
+/// one fire. Mechanical state, not business state.
+@MainActor
+package final class BasicListLoadGate {
+
+    /// Measured duplicate sources land within ~400 ms of the primary fire.
+    package static let cooldown: TimeInterval = 0.4
+
+    private var lastFireAt: Date?
+
+    package init() {}
+
+    /// Returns true when this call may fire (and records the fire); false
+    /// while still inside the cooldown window.
+    package func tryFire() -> Bool {
+        let now = Date()
+        if let last = lastFireAt, now.timeIntervalSince(last) < Self.cooldown {
+            return false
+        }
+        lastFireAt = now
+        return true
+    }
+}
+
 /// One group with its own sticky header — the typical shape: one day + the
 /// transactions of that day.
 ///
@@ -109,8 +136,21 @@ public extension View {
     func basicListRowStyle() -> some View {
         self
             .listRowInsets(EdgeInsets.zero)
-            .listRowSeparator(.hidden)
+            .basicListRowSeparatorHidden()
             .listRowBackground(Color.clear)
+    }
+}
+
+private extension View {
+    /// `listRowSeparator` is unavailable on watchOS/tvOS — and meaningless
+    /// there (their lists draw no separators).
+    @ViewBuilder
+    func basicListRowSeparatorHidden() -> some View {
+        #if os(watchOS) || os(tvOS)
+        self
+        #else
+        self.listRowSeparator(.hidden)
+        #endif
     }
 }
 
@@ -143,10 +183,10 @@ public struct BasicListSpacer: View {
 /// load-more when it materializes. Used by `BasicListView` internally and as
 /// the last row of screens that build their own List.
 ///
-/// ⚠️ Measured reality (2026-11-14, see `Docs/LoadMoreVerification.md`): the
-/// probe ALSO fires at attach for in-region lists (the zero→settled
-/// transition is an observed geometry change), so short lists currently
-/// double-fire at attach — known issue F3, fix plan in the same doc.
+/// Inside the engine the sentinel shares the list's fire gate — the probe's
+/// attach transition and the sentinel's `onAppear` collapse into at most one
+/// fire per cooldown window (`Docs/LoadMoreVerification.md` §5). Standalone
+/// (no gate) it fires unconditionally.
 ///
 /// Role: backstops the attach-time fire for short lists. The primary load-more
 /// runs through the geometry probe on the List body (`.basicListBottomProbe`,
@@ -168,9 +208,18 @@ public struct BasicListScrollSentinel: View {
     public static let defaultBottomThreshold: CGFloat = 600
 
     package let onLoadMore: () async -> Void
+    /// Shared per-list fire gate — nil when the sentinel is used standalone
+    /// outside the engine (fires unconditionally, legacy behavior).
+    package let gate: BasicListLoadGate?
 
     public init(onLoadMore: @escaping () async -> Void) {
         self.onLoadMore = onLoadMore
+        self.gate = nil
+    }
+
+    package init(onLoadMore: @escaping () async -> Void, gate: BasicListLoadGate?) {
+        self.onLoadMore = onLoadMore
+        self.gate = gate
     }
 
     public var body: some View {
@@ -180,7 +229,9 @@ public struct BasicListScrollSentinel: View {
             // 1pt virtual row — hidden from VoiceOver (not content).
             .accessibilityHidden(true)
             .onAppear {
-                Task { await onLoadMore() }
+                if gate?.tryFire() ?? true {
+                    Task { await onLoadMore() }
+                }
             }
     }
 }
