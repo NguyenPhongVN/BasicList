@@ -1,5 +1,7 @@
 # BasicList
 
+[![CI](https://github.com/NguyenPhongVN/BasicList/actions/workflows/ci.yml/badge.svg)](https://github.com/NguyenPhongVN/BasicList/actions/workflows/ci.yml)
+
 Engine list SwiftUI **"array vào — item ra"** cho house list — một view cho cả hình flat và sectioned (sticky header từng nhóm), kèm đầy đủ header / empty-state / footer / swipe actions / row tap / pull-to-refresh / load-more liên tục / reorder.
 
 Package độc lập, thuần SwiftUI — **không đọc design layer của app nào cả**: mọi màu/thông số truyền vào qua `BasicListConfig`.
@@ -30,6 +32,14 @@ Package độc lập, thuần SwiftUI — **không đọc design layer của app
 ## Cài đặt
 
 **Swift Package Manager:**
+
+```swift
+dependencies: [
+    .package(url: "https://github.com/NguyenPhongVN/BasicList.git", from: "1.0.0"),
+]
+```
+
+Hoặc bám branch `main` để nhận luôn thay đổi (không khuyến khích cho app thật):
 
 ```swift
 dependencies: [
