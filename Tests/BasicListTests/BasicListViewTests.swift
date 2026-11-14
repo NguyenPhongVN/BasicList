@@ -82,4 +82,26 @@ struct BasicListViewTests {
         let view = BasicListView(sections: sections, config: config) { Text("\($0.id)") }
         _ = view.body
     }
+
+    #if os(iOS)
+    @Test("basicEditMode pins a binding into the chain — body still builds")
+    func editModeChainBuilds() {
+        let view = BasicListView(items: [Item(id: 1), Item(id: 2)], config: config) {
+            Text("\($0.id)")
+        }
+        .onMoveRows { _, _ in }
+        .basicEditMode(Binding.constant(EditMode.active))
+        _ = view.body
+    }
+
+    @Test("basicEditMode accepts nil — leaves the environment untouched, chain builds")
+    func editModeNilBindingBuilds() {
+        let view = BasicListView(items: [Item(id: 1)], config: config) {
+            Text("\($0.id)")
+        }
+        .onMoveRows { _, _ in }
+        .basicEditMode(Binding<EditMode>?(nil))
+        _ = view.body
+    }
+    #endif
 }
