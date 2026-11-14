@@ -2,19 +2,19 @@
 
 Engine list house — thuần SwiftUI, **deps NONE** (không phụ thuộc module
 nào trong package; preview/demo dùng literal spacing). Module **không
-đọc design layer của app** (không `MontraColor`, không tab metrics, không
-token): mọi màu/thông số truyền vào qua `MontraListConfig` — engine
+đọc design layer của app** (không màu design, không tab metrics, không
+token): mọi màu/thông số truyền vào qua `BasicListConfig` — engine
 quyết định cơ chế, caller quyết định diện mạo.
 
 ## 1. Chọn view nào?
 
 | Tình huống | Dùng |
 |---|---|
-| Có mảng items, cần header/empty-state/swipe/tap/refresh/load-more có sẵn | `MontraListView` |
-| Screen tự dựng sections/rows phức tạp riêng (sections tuỳ ý, content xen kẽ) | `MontraPlainList` |
+| Có mảng items, cần header/empty-state/swipe/tap/refresh/load-more có sẵn | `BasicListView` |
+| Screen tự dựng sections/rows phức tạp riêng (sections tuỳ ý, content xen kẽ) | `BasicPlainList` |
 
-`MontraListView` dựng TRÊN `MontraPlainList` — mọi list của app cùng
-một ngôn ngữ nền: trong suốt (screen tự đổ `montraBackground`), content
+`BasicListView` dựng TRÊN `BasicPlainList` — mọi list của app cùng
+một ngôn ngữ nền: trong suốt (screen tự đổ nền của mình), content
 margins 0, row height tối thiểu 0.
 
 ## 2. Quick start
@@ -22,15 +22,15 @@ margins 0, row height tối thiểu 0.
 ### Flat list — swipe + tap + refresh + load-more
 
 ```swift
-MontraListView(items: accounts, config: .house) { account in
-    AccountRowView(account)          // cell tự .montraListRowStyle()
+BasicListView(items: accounts, config: .house) { account in
+    AccountRowView(account)          // cell tự .basicListRowStyle()
 }
-.montraListHeader { AccountBalanceHeader() }   // header cuộn cùng nội dung
-.montraListEmptyState { AccountEmptyView() }   // hiện khi items rỗng
+.basicListHeader { AccountBalanceHeader() }   // header cuộn cùng nội dung
+.basicListEmptyState { AccountEmptyView() }   // hiện khi items rỗng
 .rowSwipeActions { account in
     [
-        MontraListSwipeAction(title: "Sửa", systemImage: "pencil") { edit(account) },
-        MontraListSwipeAction(title: "Xoá", systemImage: "trash",
+        BasicListSwipeAction(title: "Sửa", systemImage: "pencil") { edit(account) },
+        BasicListSwipeAction(title: "Xoá", systemImage: "trash",
                               isDestructive: true) { confirmDelete(account) },
     ]
 }
@@ -44,21 +44,21 @@ MontraListView(items: accounts, config: .house) { account in
 ```swift
 let sections = Dictionary(grouping: transactions, by: \.day)
     .map { day, txns in
-        MontraListSection(section: day, items: txns, itemID: \.id) {
+        BasicListSection(section: day, items: txns, itemID: \.id) {
             TransactionDayHeader(day)      // sticky khi cuộn
         }
     }
 
-MontraListView(sections: sections, config: .house) { transaction in
+BasicListView(sections: sections, config: .house) { transaction in
     TransactionRowView(transaction)
 }
 ```
 
-> `MontraListView` là struct immutable — mọi modifier trả `Self`, chain
+> `BasicListView` là struct immutable — mọi modifier trả `Self`, chain
 > thoải mái. Item chưa `Identifiable` dùng
 > `init(items:id:config:content:)`, dán id qua closure như `ForEach(id:)`.
 
-## 3. Config — `MontraListConfig`
+## 3. Config — `BasicListConfig`
 
 **Bắt buộc truyền khi dựng** — không có default gắn giá trị design
 trong module: thiếu config là lỗi compile thay vì một diện mạo lặng lẽ.
@@ -66,37 +66,37 @@ trong module: thiếu config là lỗi compile thay vì một diện mạo lặn
 | Field | Nghĩa | App truyền |
 |---|---|---|
 | `destructiveActionTint` | Tint nút swipe có cờ `isDestructive: true` (action thường giữ tint hệ thống) | màu đỏ destructive của app |
-| `bottomClearance` | Spacer đáy list — clearing khi list nằm trên tab bar; context không che đáy truyền 0 | `MontraTabBarMetrics.tabContentBottomClearance` |
+| `bottomClearance` | Spacer đáy list — clearing khi list nằm trên tab bar; context không che đáy truyền 0 | clearance tab bar chuẩn của app |
 
-**Wiring một điểm duy nhất** — `BasicMontra/Shared/MontraListConfig+House.swift`:
-extension `MontraListConfig.house` tập hợp giá trị chuẩn của app. Call
-site luôn truyền `config: .house`; muốn đổi diện mạo list toàn app chỉ
-sửa đúng file đó, không rải giá trị ở từng màn.
+**Wiring một điểm duy nhất** — app layer tự đặt extension
+`BasicListConfig.house` tập hợp giá trị chuẩn của app. Call site luôn
+truyền `config: .house`; muốn đổi diện mạo list toàn app chỉ sửa đúng
+file wiring đó, không rải giá trị ở từng màn.
 
-## 4. API của `MontraListView`
+## 4. API của `BasicListView`
 
 | API | Tác dụng |
 |---|---|
-| `.montraListHeader(mode:_:)` | Header đầu list — `.scrollsWithContent` (cuộn cùng) hoặc `.pinnedTop` (ghim đỉnh) |
-| `.montraListEmptyState(_:)` | Hero rỗng chạy TRONG list (giữ identity list giữa 2 pha rỗng/có data) |
-| `.montraListFooter(_:)` | Nội dung đáy — sau rows, trước sentinel load-more |
-| `.rowSwipeActions(_:)` | Handler trả `[MontraListSwipeAction]` cho từng item |
+| `.basicListHeader(mode:_:)` | Header đầu list — `.scrollsWithContent` (cuộn cùng) hoặc `.pinnedTop` (ghim đỉnh) |
+| `.basicListEmptyState(_:)` | Hero rỗng chạy TRONG list (giữ identity list giữa 2 pha rỗng/có data) |
+| `.basicListFooter(_:)` | Nội dung đáy — sau rows, trước sentinel load-more |
+| `.rowSwipeActions(_:)` | Handler trả `[BasicListSwipeAction]` cho từng item |
 | `.onRowTap(_:)` | Tap toàn vùng row (contentShape) — không chiếm cử chỉ swipe |
 | `.onMoveRows(_:)` | Kéo-thả sắp xếp lại flat list — handle chỉ hiện khi `editMode` `.active` |
-| `.montraEditMode(_:)` | Ghim `editMode` của List theo binding của screen (iOS-only) |
+| `.basicEditMode(_:)` | Ghim `editMode` của List theo binding của screen (iOS-only) |
 | `.onRefresh(_:)` | Pull-to-refresh; lỗi nuốt trong handler (`try?`), spinner tự kết thúc |
 | `.onLoadMore(pixelThreshold:)` | Load-more liên tục khi cuộn sát đáy (mặc định 600pt) |
 
-Vocabulary dùng chung (`MontraListSupport.swift`) — engine và screen tự
+Vocabulary dùng chung (`BasicListSupport.swift`) — engine và screen tự
 dựng list đều dùng được:
 
 | Type/helper | Nghĩa |
 |---|---|
-| `MontraListSection` | Một nhóm + header sticky; header lưu CLOSURE (chỉ dựng khi group thật sự render) |
-| `MontraListSwipeAction` | Một swipe action; tint destructive lấy từ config, không nằm trong action |
-| `MontraListSpacer(height:)` | Row trong suốt cao `height` — đệm cuộn-cùng-nội dung |
-| `MontraListScrollSentinel` | Row 1pt fire `onAppear` — dùng như row cuối khi screen tự dựng list + load-more riêng |
-| `.montraListRowStyle()` | Style chuẩn 1 row (không inset/separator, nền clear) — cell của bạn nên gọi |
+| `BasicListSection` | Một nhóm + header sticky; header lưu CLOSURE (chỉ dựng khi group thật sự render) |
+| `BasicListSwipeAction` | Một swipe action; tint destructive lấy từ config, không nằm trong action |
+| `BasicListSpacer(height:)` | Row trong suốt cao `height` — đệm cuộn-cùng-nội dung |
+| `BasicListScrollSentinel` | Row 1pt fire `onAppear` — dùng như row cuối khi screen tự dựng list + load-more riêng |
+| `.basicListRowStyle()` | Style chuẩn 1 row (không inset/separator, nền clear) — cell của bạn nên gọi |
 
 ⚠️ `.pinnedTop` + sectioned **chưa kiểm chứng** — pinned hiện chỉ đi với
 flat list; tránh kết hợp cho tới khi cần và đã test.
@@ -137,12 +137,12 @@ flat list; tránh kết hợp cho tới khi cần và đã test.
 
 ## 8. Preview
 
-6 hình demo sống trong `MontraListView.swift` — mỗi hình một diện mạo
+6 hình demo sống trong `BasicListView.swift` — mỗi hình một diện mạo
 riêng (row glyph tròn màu + tiền, không phải `Text` trắng): flat
 (swipe/tap/load-more/empty-state), sectioned sticky header, ít dòng,
 4 trang phân trang + refresh đè load-more, refresh spinner chậm, refresh
 lỗi tự xử lý trong handler. Config neutral — giá trị design thật chỉ
-tồn tại ở app (`MontraListConfig.house`).
+tồn tại ở app (`BasicListConfig.house`).
 
 ## 9. Ghi chú module
 

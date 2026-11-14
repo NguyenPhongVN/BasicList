@@ -2,7 +2,7 @@
 
 Engine list SwiftUI **"array vào — item ra"** cho house list — một view cho cả hình flat và sectioned (sticky header từng nhóm), kèm đầy đủ header / empty-state / footer / swipe actions / row tap / pull-to-refresh / load-more liên tục / reorder.
 
-Tách từ package [BasicMontra](https://github.com/NguyenPhongVN/BasicMontra) thành package độc lập, thuần SwiftUI — **không đọc design layer của app nào cả**: mọi màu/thông số truyền vào qua `MontraListConfig`.
+Package độc lập, thuần SwiftUI — **không đọc design layer của app nào cả**: mọi màu/thông số truyền vào qua `BasicListConfig`.
 
 ## Tính năng
 
@@ -14,7 +14,7 @@ Tách từ package [BasicMontra](https://github.com/NguyenPhongVN/BasicMontra) t
 - ✅ Row tap toàn vùng, VoiceOver đầy đủ (button trait + accessibility actions)
 - ✅ Pull-to-refresh (lỗi handler tự xử lý trong handler — spinner tự kết thúc)
 - ✅ Load-more liên tục: probe geometry trên thân List + sentinel bù list ngắn
-- ✅ Reorder flat list (`onMoveRows` + `montraEditMode`) — iOS only
+- ✅ Reorder flat list (`onMoveRows` + `basicEditMode`) — iOS only
 - ✅ Reorder + swipe + tap + refresh + load-more **dùng chung một list không xung đột identity**
 
 ## Yêu cầu
@@ -35,7 +35,7 @@ dependencies: [
 ]
 ```
 
-Hoặc path dependency cục bộ (cách BasicMontra đang dùng khi phát triển song song):
+Hoặc path dependency cục bộ (khi phát triển song song trong monorepo):
 
 ```swift
 dependencies: [
@@ -56,7 +56,7 @@ import BasicList
 Item tự `Identifiable`:
 
 ```swift
-MontraListView(items: accounts, config: .house) { account in
+BasicListView(items: accounts, config: .house) { account in
     AccountRowView(account)
 }
 ```
@@ -64,7 +64,7 @@ MontraListView(items: accounts, config: .house) { account in
 Item chưa `Identifiable` — dán id qua closure, như `ForEach(id:)`:
 
 ```swift
-MontraListView(items: accounts, id: \.name, config: .house) { account in
+BasicListView(items: accounts, id: \.name, config: .house) { account in
     AccountRowView(account)
 }
 ```
@@ -72,16 +72,16 @@ MontraListView(items: accounts, id: \.name, config: .house) { account in
 ### Sectioned list — sticky header từng nhóm
 
 ```swift
-let sections: [MontraListSection<Transaction>] = [
-    MontraListSection(section: "Today", items: todays, itemID: \.id) {
+let sections: [BasicListSection<Transaction>] = [
+    BasicListSection(section: "Today", items: todays, itemID: \.id) {
         DayHeader("TODAY")          // sticky khi cuộn
     },
-    MontraListSection(section: "Yesterday", items: yesterdays, itemID: \.id) {
+    BasicListSection(section: "Yesterday", items: yesterdays, itemID: \.id) {
         DayHeader("YESTERDAY")
     },
 ]
 
-MontraListView(sections: sections, config: .house) { transaction in
+BasicListView(sections: sections, config: .house) { transaction in
     TransactionRowView(transaction)
 }
 ```
@@ -91,13 +91,13 @@ MontraListView(sections: sections, config: .house) { transaction in
 Modifier builder-style, trả `Self` — chain thoải mái, không có state ẩn đổi theo thứ tự gọi:
 
 ```swift
-MontraListView(items: transactions, config: .house) { TransactionRowView($0) }
-    .montraListHeader { AccountBalanceHeader() }        // hoặc .montraListHeader(mode: .pinnedTop) { ... }
-    .montraListEmptyState { EmptyHero() }               // list rỗng
-    .montraListFooter { SuggestionCategories() }        // đáy list
+BasicListView(items: transactions, config: .house) { TransactionRowView($0) }
+    .basicListHeader { AccountBalanceHeader() }        // hoặc .basicListHeader(mode: .pinnedTop) { ... }
+    .basicListEmptyState { EmptyHero() }               // list rỗng
+    .basicListFooter { SuggestionCategories() }        // đáy list
     .rowSwipeActions { transaction in                    // swipe trái
         [
-            MontraListSwipeAction(title: "Delete", systemImage: "trash", isDestructive: true) {
+            BasicListSwipeAction(title: "Delete", systemImage: "trash", isDestructive: true) {
                 vm.delete(transaction)
             },
         ]
@@ -110,22 +110,22 @@ MontraListView(items: transactions, config: .house) { TransactionRowView($0) }
 Reorder (flat list, iOS only — handle hiện khi `editMode` `.active`):
 
 ```swift
-MontraListView(items: categories, config: .house) { CategoryRowView($0) }
+BasicListView(items: categories, config: .house) { CategoryRowView($0) }
     .onMoveRows { vm.move($0, to: $1) }
-    .montraEditMode($editMode)
+    .basicEditMode($editMode)
 ```
 
-### List trần — `MontraPlainList`
+### List trần — `BasicPlainList`
 
 Screen **tự dựng** sections/rows phức tạp riêng → dùng trực tiếp list trần (nền trong suốt, content margins 0, row height tối thiểu 0):
 
 ```swift
-MontraPlainList(config: .house) {
+BasicPlainList(config: .house) {
     ForEach(sections) { ... }
 }
 ```
 
-`MontraListView` dựng TRÊN nền này — mọi list của app cùng một ngôn ngữ render.
+`BasicListView` dựng TRÊN nền này — mọi list của app cùng một ngôn ngữ render.
 
 ### Khối dựng list riêng
 
@@ -133,16 +133,16 @@ Ba khối vocabulary vẫn áp dụng được khi screen tự viết `List`:
 
 ```swift
 // Style chuẩn của MỘT row house — idempotent
-row.montraListRowStyle()
+row.basicListRowStyle()
 
 // Spacer đáy cuộn cùng nội dung (clearing tab bar)
-MontraListSpacer(height: config.bottomClearance)
+BasicListSpacer(height: config.bottomClearance)
 
 // Sentinel load-more cho list tự dựng
-MontraListScrollSentinel { await vm.loadMore() }
+BasicListScrollSentinel { await vm.loadMore() }
 ```
 
-## Config — `MontraListConfig`
+## Config — `BasicListConfig`
 
 Mọi màu/thông số truyền vào qua config — **thiếu config là lỗi compile**, không có diện mạo lặng lẽ nào cả:
 
@@ -154,9 +154,9 @@ Mọi màu/thông số truyền vào qua config — **thiếu config là lỗi c
 App layer tập hợp giá trị chuẩn tại **một điểm** thay vì rải màu ở từng call site:
 
 ```swift
-extension MontraListConfig {
-    static var house: MontraListConfig {
-        MontraListConfig(
+extension BasicListConfig {
+    static var house: BasicListConfig {
+        BasicListConfig(
             destructiveActionTint: .red,
             bottomClearance: 80)
     }
@@ -175,15 +175,15 @@ extension MontraListConfig {
 
 | Symbol | Vai trò |
 |---|---|
-| `MontraListView` | Engine chính — flat & sectioned |
-| `MontraPlainList` | List `.plain` trần — nền của mọi list house |
-| `MontraListConfig` | Màu/thông số truyền vào |
-| `MontraListSection` | Một nhóm + sticky header |
-| `MontraListSwipeAction` | Mô tả một swipe action |
-| `MontraListHeaderMode` | `.scrollsWithContent` / `.pinnedTop` |
-| `MontraListSpacer` | Spacer trong suốt cuộn cùng nội dung |
-| `MontraListScrollSentinel` | Sentinel bù fire load-more list ngắn |
-| `View.montraListRowStyle()` | Style row house — idempotent |
+| `BasicListView` | Engine chính — flat & sectioned |
+| `BasicPlainList` | List `.plain` trần — nền của mọi list house |
+| `BasicListConfig` | Màu/thông số truyền vào |
+| `BasicListSection` | Một nhóm + sticky header |
+| `BasicListSwipeAction` | Mô tả một swipe action |
+| `BasicListHeaderMode` | `.scrollsWithContent` / `.pinnedTop` |
+| `BasicListSpacer` | Spacer trong suốt cuộn cùng nội dung |
+| `BasicListScrollSentinel` | Sentinel bù fire load-more list ngắn |
+| `View.basicListRowStyle()` | Style row house — idempotent |
 
 Chi tiết cơ chế load-more (probe geometry + sentinel), rule bắt buộc và A11y — xem [`Sources/BasicList/README.md`](Sources/BasicList/README.md).
 

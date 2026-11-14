@@ -1,13 +1,13 @@
 import SwiftUI
 
-// MARK: - MontraListView — engine "array vào — item ra"
+// MARK: - BasicListView — engine "array vào — item ra"
 //
 // Một view cho cả hai hình: flat (`items:`) và sectioned với sticky
 // header từng nhóm (`sections:`). Kèm header 2 mode, empty-state, footer,
 // swipe actions, row tap, refresh, load-more liên tục, reorder flat list
-// (onMove + editMode). Nền là `MontraPlainList` — list .plain trần house.
+// (onMove + editMode). Nền là `BasicPlainList` — list .plain trần house.
 //
-// MÀU/THÔNG SỐ: truyền vào qua `MontraListConfig` — engine thuần
+// MÀU/THÔNG SỐ: truyền vào qua `BasicListConfig` — engine thuần
 // SwiftUI, không đọc design layer. Cách chọn view, config, cơ chế
 // load-more và rule bắt buộc — xem README.md của module.
 
@@ -23,19 +23,19 @@ import SwiftUI
 ///   thiếu config là lỗi compile.
 ///
 /// ```swift
-/// MontraListView(items: accounts, config: .house) { account in
+/// BasicListView(items: accounts, config: .house) { account in
 ///     AccountRowView(account)
 /// }
-/// .montraListHeader { AccountBalanceHeader() }
+/// .basicListHeader { AccountBalanceHeader() }
 /// .onRefresh { try await api.reload() }
 /// .onLoadMore { try await api.nextPage() }
 /// .rowSwipeActions { account in deleteActions(for: account) }
 ///
-/// MontraListView(sections: dayGroups, config: .house) { transaction in
+/// BasicListView(sections: dayGroups, config: .house) { transaction in
 ///     TransactionRowView(transaction)
 /// }
 /// ```
-public struct MontraListView<Item, Content: View>: View {
+public struct BasicListView<Item, Content: View>: View {
 
     private struct Row: Identifiable {
         let item: Item
@@ -54,14 +54,14 @@ public struct MontraListView<Item, Content: View>: View {
     private let groups: [Group]
     private let rows: [Row]
     private let content: (Item) -> Content
-    /// Màu/thông số truyền vào từ caller (xem `MontraListConfig`) — engine
+    /// Màu/thông số truyền vào từ caller (xem `BasicListConfig`) — engine
     /// không tự đọc giá trị design.
-    private let config: MontraListConfig
+    private let config: BasicListConfig
     private var headerBuilder: (() -> AnyView)?
-    private var headerMode: MontraListHeaderMode = .scrollsWithContent
+    private var headerMode: BasicListHeaderMode = .scrollsWithContent
     private var emptyStateBuilder: (() -> AnyView)?
     private var footerBuilder: (() -> AnyView)?
-    private var rowSwipeHandler: ((Item) -> [MontraListSwipeAction])?
+    private var rowSwipeHandler: ((Item) -> [BasicListSwipeAction])?
     private var rowTapHandler: ((Item) -> Void)?
     private var onMoveHandler: ((IndexSet, Int) -> Void)?
     #if os(iOS)
@@ -69,12 +69,12 @@ public struct MontraListView<Item, Content: View>: View {
     #endif
     private var onRefreshHandler: (() async throws -> Void)?
     private var onLoadMoreHandler: (() async -> Void)?
-    private var bottomThreshold = MontraListScrollSentinel.defaultBottomThreshold
+    private var bottomThreshold = BasicListScrollSentinel.defaultBottomThreshold
 
     /// Item tự `Identifiable`.
     public init(
         items: [Item],
-        config: MontraListConfig,
+        config: BasicListConfig,
         @ViewBuilder content: @escaping (Item) -> Content
     ) where Item: Identifiable {
         self.isSectioned = false
@@ -88,7 +88,7 @@ public struct MontraListView<Item, Content: View>: View {
     public init(
         items: [Item],
         id: @escaping (Item) -> any Hashable,
-        config: MontraListConfig,
+        config: BasicListConfig,
         @ViewBuilder content: @escaping (Item) -> Content
     ) {
         self.isSectioned = false
@@ -100,8 +100,8 @@ public struct MontraListView<Item, Content: View>: View {
 
     /// Danh sách section, mỗi nhóm một sticky header (`section.header`).
     public init(
-        sections: [MontraListSection<Item>],
-        config: MontraListConfig,
+        sections: [BasicListSection<Item>],
+        config: BasicListConfig,
         @ViewBuilder content: @escaping (Item) -> Content
     ) {
         self.isSectioned = true
@@ -125,8 +125,8 @@ public struct MontraListView<Item, Content: View>: View {
     /// ⚠️ `.pinnedTop` + sectioned CHƯA KIỂM CHỨNG: header pinned là
     /// Section bao quanh các Section của groups — kết hợp này chưa có
     /// caller nào dùng, tránh cho tới khi cần và đã test.
-    public func montraListHeader(
-        mode: MontraListHeaderMode = .scrollsWithContent,
+    public func basicListHeader(
+        mode: BasicListHeaderMode = .scrollsWithContent,
         @ViewBuilder _ builder: @escaping () -> some View
     ) -> Self {
         var copy = self
@@ -138,7 +138,7 @@ public struct MontraListView<Item, Content: View>: View {
     /// Nội dung thay thế rows khi list rỗng — hero rỗng chạy TRONG list
     /// (cuộn cùng, list giữ identity giữa hai pha rỗng/có dữ liệu) thay
     /// vì nhánh `if` bên ngoài làm list xuất hiện/biến mất.
-    public func montraListEmptyState(@ViewBuilder _ builder: @escaping () -> some View) -> Self {
+    public func basicListEmptyState(@ViewBuilder _ builder: @escaping () -> some View) -> Self {
         var copy = self
         copy.emptyStateBuilder = { AnyView(builder()) }
         return copy
@@ -147,7 +147,7 @@ public struct MontraListView<Item, Content: View>: View {
     /// Nội dung đáy list — sau toàn bộ rows (hoặc empty-state), trước
     /// sentinel load-more; suggestion Categories chạy đây để cuộn cùng
     /// nội dung như một section thật của list.
-    public func montraListFooter(@ViewBuilder _ builder: @escaping () -> some View) -> Self {
+    public func basicListFooter(@ViewBuilder _ builder: @escaping () -> some View) -> Self {
         var copy = self
         copy.footerBuilder = { AnyView(builder()) }
         return copy
@@ -155,7 +155,7 @@ public struct MontraListView<Item, Content: View>: View {
 
     /// Swipe actions trên từng dòng — data in, events out: handler trả
     /// danh sách action của mỗi item, list vẽ nút và hồi báo handler.
-    public func rowSwipeActions(_ handler: @escaping (Item) -> [MontraListSwipeAction]) -> Self {
+    public func rowSwipeActions(_ handler: @escaping (Item) -> [BasicListSwipeAction]) -> Self {
         var copy = self
         copy.rowSwipeHandler = handler
         return copy
@@ -174,7 +174,7 @@ public struct MontraListView<Item, Content: View>: View {
     /// Kéo-thả sắp xếp lại các dòng (flat list) — data in, events out:
     /// screen truyền handler, List hồi báo source/destination khi user
     /// kéo handle. Handle chỉ xuất hiện khi `editMode` đang `.active`
-    /// (screen điều khiển qua `montraEditMode`); không truyền handler
+    /// (screen điều khiển qua `basicEditMode`); không truyền handler
     /// thì list nguyên trạng. Chỉ áp cho hình flat — sectioned chưa hỗ
     /// trợ reorder.
     public func onMoveRows(_ handler: @escaping (IndexSet, Int) -> Void) -> Self {
@@ -188,7 +188,7 @@ public struct MontraListView<Item, Content: View>: View {
     /// drag handle của `onMoveRows`, `.inactive` trả list về tương tác
     /// thường. Không truyền (mặc định) là list nguyên trạng. iOS-only:
     /// `EditMode` unavailable trên macOS.
-    public func montraEditMode(_ binding: Binding<EditMode>?) -> Self {
+    public func basicEditMode(_ binding: Binding<EditMode>?) -> Self {
         var copy = self
         copy.editModeBinding = binding
         return copy
@@ -205,13 +205,13 @@ public struct MontraListView<Item, Content: View>: View {
         return copy
     }
 
-    /// Load-more liên tục — cơ chế xem doc `.montraListBottomProbe` +
-    /// `MontraListScrollSentinel` (probe trên thân List, sentinel bù fire
+    /// Load-more liên tục — cơ chế xem doc `.basicListBottomProbe` +
+    /// `BasicListScrollSentinel` (probe trên thân List, sentinel bù fire
     /// list ngắn, chặn lặp nằm phía VM). `pixelThreshold` đổi ngưỡng vào
     /// vùng đáy (mặc định 600pt).
     public func onLoadMore(
         _ handler: @escaping () async -> Void,
-        pixelThreshold: CGFloat = MontraListScrollSentinel.defaultBottomThreshold
+        pixelThreshold: CGFloat = BasicListScrollSentinel.defaultBottomThreshold
     ) -> Self {
         var copy = self
         copy.onLoadMoreHandler = handler
@@ -222,32 +222,32 @@ public struct MontraListView<Item, Content: View>: View {
     // MARK: Body
 
     public var body: some View {
-        MontraPlainList(config: config) {
+        BasicPlainList(config: config) {
             if let headerBuilder, headerMode == .pinnedTop {
                 Section {
                     rowsList
                 } header: {
-                    headerBuilder().montraListRowStyle()
+                    headerBuilder().basicListRowStyle()
                 }
             } else {
                 if let headerBuilder {
-                    headerBuilder().montraListRowStyle()
+                    headerBuilder().basicListRowStyle()
                 }
                 rowsList
             }
             if let footerBuilder {
-                footerBuilder().montraListRowStyle()
+                footerBuilder().basicListRowStyle()
             }
             if let onLoadMoreHandler {
-                MontraListScrollSentinel(onLoadMore: onLoadMoreHandler)
+                BasicListScrollSentinel(onLoadMore: onLoadMoreHandler)
             }
         }
-        .montraListRefreshable(onRefreshHandler)
-        .montraListBottomProbe(
+        .basicListRefreshable(onRefreshHandler)
+        .basicListBottomProbe(
             bottomThreshold: bottomThreshold,
             onLoadMoreHandler)
         #if os(iOS)
-        .montraListEditMode(editModeBinding)
+        .basicListEditMode(editModeBinding)
         #endif
     }
 
@@ -257,13 +257,13 @@ public struct MontraListView<Item, Content: View>: View {
         // giữ data trong `groups` (`rows` luôn rỗng) — kiểm `rows.isEmpty`
         // với sectioned có data sẽ nhầm là rỗng và hiện empty state.
         if isEmpty, let emptyStateBuilder {
-            emptyStateBuilder().montraListRowStyle()
+            emptyStateBuilder().basicListRowStyle()
         } else if isSectioned {
             ForEach(groups) { group in
                 Section {
                     ForEach(group.rows) { rowView(_: $0) }
                 } header: {
-                    group.header().montraListRowStyle()
+                    group.header().basicListRowStyle()
                 }
             }
         } else if let onMoveHandler {
@@ -302,8 +302,8 @@ public struct MontraListView<Item, Content: View>: View {
 
     private func baseRow(_ row: Row) -> some View {
         content(row.item)
-            .montraListRowStyle()
-            .montraRowSwipeActions(
+            .basicListRowStyle()
+            .basicRowSwipeActions(
                 rowSwipeHandler?(row.item),
                 destructiveTint: config.destructiveActionTint)
     }
@@ -315,7 +315,7 @@ private extension View {
     /// Refresh chỉ khi có handler — không thì giữ list nguyên trạng; lỗi
     /// nuộc trong chính refreshable (pull spinner tự kết thúc).
     @ViewBuilder
-    func montraListRefreshable(_ handler: (() async throws -> Void)?) -> some View {
+    func basicListRefreshable(_ handler: (() async throws -> Void)?) -> some View {
         if let handler {
             refreshable { try? await handler() }
         } else {
@@ -327,7 +327,7 @@ private extension View {
     /// Ghim `editMode` của List chỉ khi có binding — list không reorder
     /// giữ nguyên trạng thái environment.
     @ViewBuilder
-    func montraListEditMode(_ binding: Binding<EditMode>?) -> some View {
+    func basicListEditMode(_ binding: Binding<EditMode>?) -> some View {
         if let binding {
             self.environment(\.editMode, binding)
         } else {
@@ -341,13 +341,13 @@ private extension View {
     /// là hand-off confirm-riêng (popup). KHÔNG dùng `role: .destructive`:
     /// destructive-role + full swipe kích hoạt animation trượt row đi (SwiftUI
     /// coi row đã bị xoá) — không render lại thì row mất luôn dù data nguyên.
-    /// Look đỏ giữ bằng `.tint` trên Button — màu từ `MontraListConfig`
+    /// Look đỏ giữ bằng `.tint` trên Button — màu từ `BasicListConfig`
     /// truyền xuống (`destructiveTint`), engine không tự đọc token design.
     /// Mỗi action còn expose `.accessibilityAction(named:)`: cử chỉ swipe
     /// không tồn tại với VoiceOver, actions phải kích hoạt được từ rotor.
     @ViewBuilder
-    func montraRowSwipeActions(
-        _ actions: [MontraListSwipeAction]?,
+    func basicRowSwipeActions(
+        _ actions: [BasicListSwipeAction]?,
         destructiveTint: Color
     ) -> some View {
         if let actions, !actions.isEmpty {
@@ -389,18 +389,18 @@ private extension View {
     /// vào (`contentHeight` đổi) mà vẫn trong vùng — nạp tiếp cho tới
     /// khi ra khỏi vùng hoặc hết trang. Lượt trang đầu list ngắn — chưa
     /// đủ đầy màn thì không có phép đổi geometry nào sau lúc gắn — do
-    /// `MontraListScrollSentinel` bù bằng `onAppear`. Lượt fire trùng
+    /// `BasicListScrollSentinel` bù bằng `onAppear`. Lượt fire trùng
     /// (probe + sentinel cùng nổ) nằm phía VM: `Paging.inFlight` chặn
     /// song song, `exhausted` bỏ qua khi hết trang — probe không giữ
     /// state, action vô trạng thái (old/new từ chính modifier).
     @ViewBuilder
-    func montraListBottomProbe(
+    func basicListBottomProbe(
         bottomThreshold: CGFloat,
         _ handler: (() async -> Void)?
     ) -> some View {
         if let handler {
-            onScrollGeometryChange(for: MontraListBottomProbe.self) { geometry in
-                MontraListBottomProbe(
+            onScrollGeometryChange(for: BasicListBottomProbe.self) { geometry in
+                BasicListBottomProbe(
                     distanceFromBottom: geometry.contentSize.height
                         - geometry.contentInsets.bottom
                         - (geometry.contentOffset.y + geometry.containerSize.height),
@@ -423,7 +423,7 @@ private extension View {
 /// so sánh "đã tới vùng đáy". `contentHeight` nằm trong probe để trang
 /// mới đính vào (list cao thêm) là một PHÉP ĐỔI riêng, dù khoảng cách
 /// đáy tình cờ giữ nguyên.
-private struct MontraListBottomProbe: Equatable {
+private struct BasicListBottomProbe: Equatable {
     let distanceFromBottom: CGFloat
     let contentHeight: CGFloat
 }
@@ -436,9 +436,9 @@ private struct MontraListBottomProbe: Equatable {
 // `PreviewRow` (glyph tròn + tiêu đề + phụ đề + tiền) cho mỗi hình có
 // diện mạo riêng, không qua bảng Localizable của app. Config neutral
 // (giá trị design thật do caller truyền — app truyền qua
-// `MontraListConfig.house`).
+// `BasicListConfig.house`).
 
-private let previewConfig = MontraListConfig(
+private let previewConfig = BasicListConfig(
     destructiveActionTint: .red, bottomClearance: 60)
 
 private struct PreviewItem: Identifiable {
@@ -516,7 +516,7 @@ private struct PreviewRow: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 16)
-        .montraListRowStyle()
+        .basicListRowStyle()
     }
 }
 
@@ -547,13 +547,13 @@ private struct FlatListPreview: View {
     @State private var loadRound = 0
 
     var body: some View {
-        MontraListView(items: items, config: previewConfig) { PreviewRow(item: $0) }
-            .montraListHeader {
+        BasicListView(items: items, config: previewConfig) { PreviewRow(item: $0) }
+            .basicListHeader {
                 PreviewHeader(
                     title: "Demo list",
                     subtitle: "Swipe left · tap to remove · scroll to bottom to load more")
             }
-            .montraListEmptyState {
+            .basicListEmptyState {
                 VStack(spacing: 8) {
                     Image(systemName: "tray")
                         .font(.system(size: 32, weight: .medium))
@@ -565,7 +565,7 @@ private struct FlatListPreview: View {
                 .padding(40)
             }
             .rowSwipeActions { _ in
-                [MontraListSwipeAction(title: "Delete", systemImage: "trash", isDestructive: true) {}]
+                [BasicListSwipeAction(title: "Delete", systemImage: "trash", isDestructive: true) {}]
             }
             .onRowTap { tapped in
                 items.removeAll { $0.id == tapped.id }
@@ -601,13 +601,13 @@ private struct SectionedListPreview: View {
         .padding(.vertical, 8)
     }
 
-    static let sections: [MontraListSection<PreviewItem>] = [
-        MontraListSection(section: "Today", items: [
+    static let sections: [BasicListSection<PreviewItem>] = [
+        BasicListSection(section: "Today", items: [
             fixtureItem(at: 7), fixtureItem(at: 3), fixtureItem(at: 1),
         ], itemID: \.id) {
             sectionHeader("TODAY", count: 3)
         },
-        MontraListSection(section: "Yesterday", items: [
+        BasicListSection(section: "Yesterday", items: [
             fixtureItem(at: 5), fixtureItem(at: 6),
         ], itemID: \.id) {
             sectionHeader("YESTERDAY", count: 2)
@@ -615,8 +615,8 @@ private struct SectionedListPreview: View {
     ]
 
     var body: some View {
-        MontraListView(sections: Self.sections, config: previewConfig) { PreviewRow(item: $0) }
-            .montraListHeader {
+        BasicListView(sections: Self.sections, config: previewConfig) { PreviewRow(item: $0) }
+            .basicListHeader {
                 PreviewHeader(
                     title: "Day groups",
                     subtitle: "Sticky headers pin while scrolling")
@@ -634,20 +634,20 @@ private struct FewItemsPreview: View {
     @State private var items = [7, 3, 1].map { fixtureItem(at: $0) }
 
     var body: some View {
-        MontraListView(items: items, config: previewConfig) { PreviewRow(item: $0) }
-            .montraListHeader {
+        BasicListView(items: items, config: previewConfig) { PreviewRow(item: $0) }
+            .basicListHeader {
                 PreviewHeader(
                     title: "Small list",
                     subtitle: "3 rows — no load-more attached, nothing fires")
             }
-            .montraListFooter {
+            .basicListFooter {
                 Text("Footer scrolls with content")
                     .font(.system(.footnote, design: .rounded))
                     .foregroundStyle(.secondary)
                     .padding(12)
             }
             .rowSwipeActions { item in
-                [MontraListSwipeAction(
+                [BasicListSwipeAction(
                     title: "Delete \(item.title)", systemImage: "trash",
                     isDestructive: true) {}]
             }
@@ -672,8 +672,8 @@ private struct PagedListPreview: View {
     @State private var items = (1...25).map { pagedFixtureItem(at: $0, page: 1) }
 
     var body: some View {
-        MontraListView(items: items, config: previewConfig) { PreviewRow(item: $0) }
-            .montraListHeader {
+        BasicListView(items: items, config: previewConfig) { PreviewRow(item: $0) }
+            .basicListHeader {
                 PreviewHeader(
                     title: "Recent activity",
                     subtitle: page < Self.lastPage
@@ -707,8 +707,8 @@ private struct SlowRefreshPreview: View {
     @State private var items = [7, 3, 1, 5].map { fixtureItem(at: $0) }
 
     var body: some View {
-        MontraListView(items: items, config: previewConfig) { PreviewRow(item: $0) }
-            .montraListHeader {
+        BasicListView(items: items, config: previewConfig) { PreviewRow(item: $0) }
+            .basicListHeader {
                 PreviewHeader(
                     title: "Wallet",
                     subtitle: "Refreshed ×\(refreshCount) — pull to refresh (1.5s)")
@@ -734,13 +734,13 @@ private struct RefreshErrorPreview: View {
     @State private var lastError: String?
 
     var body: some View {
-        MontraListView(items: [7, 2].map { fixtureItem(at: $0) }, config: previewConfig) { PreviewRow(item: $0) }
-            .montraListHeader {
+        BasicListView(items: [7, 2].map { fixtureItem(at: $0) }, config: previewConfig) { PreviewRow(item: $0) }
+            .basicListHeader {
                 PreviewHeader(
                     title: "Sync",
                     subtitle: "Pull to refresh — fails on purpose")
             }
-            .montraListFooter {
+            .basicListFooter {
                 if let lastError {
                     Label(lastError, systemImage: "exclamationmark.triangle.fill")
                         .font(.system(.footnote, design: .rounded).weight(.medium))

@@ -1,16 +1,16 @@
 import SwiftUI
 
-// MARK: - Vocabulary dùng chung của MontraList
+// MARK: - Vocabulary dùng chung của BasicList
 //
 // Các type nhỏ đi kèm engine: mode header, section, swipe action, spacer,
 // sentinel, row style. Ba nhóm người dùng chung một ngôn ngữ render:
-// engine (`MontraListView`), list trần (`MontraPlainList`), và screen
+// engine (`BasicListView`), list trần (`BasicPlainList`), và screen
 // tự dựng List riêng (sentinel/spacer/row-style vẫn áp dụng được).
 
-/// Mode header của `MontraListView`:
+/// Mode header của `BasicListView`:
 /// - `.scrollsWithContent`: header lướt cùng nội dung (mặc định).
 /// - `.pinnedTop`: ghim đỉnh — sticky như supplementary view của UIKit.
-public enum MontraListHeaderMode {
+public enum BasicListHeaderMode {
     case scrollsWithContent
     case pinnedTop
 }
@@ -22,7 +22,7 @@ public enum MontraListHeaderMode {
 /// computed property của screen (chạy lại mỗi lần body re-eval) — build
 /// sẵn `AnyView` ở đây là dựng header cho những lượt render bị vứt;
 /// closure chỉ tiêu hao khi list thật sự render group đó.
-public struct MontraListSection<Item> {
+public struct BasicListSection<Item> {
     package let section: AnyHashable
     package let header: () -> AnyView
     package let items: [Item]
@@ -44,8 +44,8 @@ public struct MontraListSection<Item> {
 /// Một swipe action trả về từ handler `.rowSwipeActions` — data in,
 /// events out: caller mô tả nút (title/glyph/cờ destructive), engine vẽ
 /// và hồi báo handler khi user bấm. Tint của nút destructive KHÔNG nằm
-/// ở đây — lấy từ `MontraListConfig.destructiveActionTint` của list.
-public struct MontraListSwipeAction {
+/// ở đây — lấy từ `BasicListConfig.destructiveActionTint` của list.
+public struct BasicListSwipeAction {
     package let title: String
     package let systemImage: String
     package let isDestructive: Bool
@@ -68,7 +68,7 @@ public struct MontraListSwipeAction {
 /// separator, nền trong suốt — cell tự vẽ nền/card của nó. Idempotent:
 /// engine nội bộ cũng áp trên row đã style, gọi lại không đổi gì.
 public extension View {
-    func montraListRowStyle() -> some View {
+    func basicListRowStyle() -> some View {
         self
             .listRowInsets(EdgeInsets.zero)
             .listRowSeparator(.hidden)
@@ -78,14 +78,14 @@ public extension View {
 
 package extension EdgeInsets {
     /// Đối trọng `EdgeInsets.zero` cho list house — dùng cùng
-    /// `montraListRowStyle()`.
+    /// `basicListRowStyle()`.
     static let zero = EdgeInsets()
 }
 
-/// Row trong suốt cao `height` — chèn đáy `MontraPlainList` (clearing
+/// Row trong suốt cao `height` — chèn đáy `BasicPlainList` (clearing
 /// tab bar) hoặc bất kỳ khoảng đệm cuộn-cùng-nội dung nào cần nằm trong
 /// list.
-public struct MontraListSpacer: View {
+public struct BasicListSpacer: View {
     package let height: CGFloat
 
     public init(height: CGFloat) {
@@ -95,18 +95,18 @@ public struct MontraListSpacer: View {
     public var body: some View {
         Color.clear
             .frame(height: height)
-            .montraListRowStyle()
+            .basicListRowStyle()
             // Spacer thuần cơ học — không phải điểm dừng VoiceOver.
             .accessibilityHidden(true)
     }
 }
 
 /// Sentinel đáy: row trong suốt 1pt mang `onAppear` — fire load-more
-/// khi materialize. Dùng nội bộ của `MontraListView` và như row cuối
+/// khi materialize. Dùng nội bộ của `BasicListView` và như row cuối
 /// của screen dựng List riêng.
 ///
 /// Vai trò: BÙ FIRE LÚC GẮN cho list ngắn. Load-more chính chạy bằng
-/// probe geometry trên thân List (`.montraListBottomProbe`, private của
+/// probe geometry trên thân List (`.basicListBottomProbe`, private của
 /// engine) — observer sống trọn vòng đời list, fire theo chuyển trạng
 /// thái vào vùng đáy. Nhưng trang đầu chưa đủ đầy màn thì không có phép
 /// đổi geometry nào sau lúc probe gắn (khoảng cách đáy âm — đã trong
@@ -116,10 +116,10 @@ public struct MontraListSpacer: View {
 /// đã cuộn vào vùng đáy — đúng điều kiện. Lượt fire trùng (probe +
 /// sentinel cùng nổ) chặn phía VM (`Paging.inFlight` / `exhausted`) —
 /// sentinel không giữ state nào.
-public struct MontraListScrollSentinel: View {
+public struct BasicListScrollSentinel: View {
 
     /// Vào vùng trigger khi còn cách đáy dưới ngưỡng này — ngưỡng mặc
-    /// định dùng chung cho probe thân List (`.montraListBottomProbe`).
+    /// định dùng chung cho probe thân List (`.basicListBottomProbe`).
     public static let defaultBottomThreshold: CGFloat = 600
 
     package let onLoadMore: () async -> Void
@@ -131,7 +131,7 @@ public struct MontraListScrollSentinel: View {
     public var body: some View {
         Color.clear
             .frame(height: 1)
-            .montraListRowStyle()
+            .basicListRowStyle()
             // Row ảo 1pt — ẩn khỏi VoiceOver (không phải nội dung).
             .accessibilityHidden(true)
             .onAppear {
