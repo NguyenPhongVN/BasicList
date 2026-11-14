@@ -73,8 +73,8 @@ public struct BasicListView<Item, Content: View>: View {
     #endif
     private var onRefreshHandler: (() async throws -> Void)?
     private var onLoadMoreHandler: (() async -> Void)?
-    private var bottomThreshold = BasicListScrollSentinel.defaultBottomThreshold
-    private var pagesAhead = 0
+    private var loadMoreMode: BasicListLoadMoreMode =
+        .pixelThreshold(BasicListScrollSentinel.defaultBottomThreshold)
 
     /// Items that are already `Identifiable`.
     public init(
@@ -242,23 +242,21 @@ public struct BasicListView<Item, Content: View>: View {
     /// short lists, loop prevention lives on the VM side). The handler is the
     /// LAST closure so trailing syntax works freely: `.onLoadMore { ... }`.
     ///
-    /// ASDK/IGListKit-style prefetch — `pagesAhead`: loads BEFORE the user
-    /// reaches the bottom. Bottom region = `pagesAhead × viewport height`
-    /// (in screens, not per-page heights — the engine can't know the page
-    /// size, data in / events out): inside the region the probe loads
-    /// CONTINUOUSLY as pages attach until the distance exceeds the region or
-    /// pages run out (VM `exhausted`). `pagesAhead: 2` ≈ "keep 2 pages ahead".
-    /// `pagesAhead > 0` overrides `pixelThreshold`; for a static pixel
-    /// threshold use `pagesAhead: 0` + `pixelThreshold` (default 600pt).
+    /// The mode is an ENUM passed in — the two mechanisms are mutually
+    /// exclusive BY TYPE, no silent override:
+    /// - `.pixelThreshold(CGFloat)` — static pixel threshold (default 600pt).
+    /// - `.pagesAhead(Int)` — ASDK/IGListKit-style prefetch: loads BEFORE the
+    ///   user reaches the bottom; bottom region = N × viewport height, and
+    ///   inside the region the probe loads CONTINUOUSLY as pages attach until
+    ///   the distance exceeds the region or pages run out (VM `exhausted`).
+    ///   `.pagesAhead(2)` ≈ "keep 2 pages ahead".
     public func onLoadMore(
-        pagesAhead: Int = 0,
-        pixelThreshold: CGFloat = BasicListScrollSentinel.defaultBottomThreshold,
+        mode: BasicListLoadMoreMode = .pixelThreshold(BasicListScrollSentinel.defaultBottomThreshold),
         _ handler: @escaping () async -> Void
     ) -> Self {
         var copy = self
         copy.onLoadMoreHandler = handler
-        copy.bottomThreshold = pixelThreshold
-        copy.pagesAhead = pagesAhead
+        copy.loadMoreMode = mode
         return copy
     }
 
@@ -287,8 +285,7 @@ public struct BasicListView<Item, Content: View>: View {
         }
         .basicListRefreshable(onRefreshHandler)
         .basicListBottomProbe(
-            pagesAhead: pagesAhead,
-            pixelThreshold: bottomThreshold,
+            mode: loadMoreMode,
             onLoadMoreHandler)
         #if os(iOS)
         .basicListEditMode(editModeBinding)
@@ -475,8 +472,7 @@ private extension View {
     /// from the modifier itself).
     @ViewBuilder
     func basicListBottomProbe(
-        pagesAhead: Int,
-        pixelThreshold: CGFloat,
+        mode: BasicListLoadMoreMode,
         _ handler: (() async -> Void)?
     ) -> some View {
         if let handler {
@@ -488,12 +484,17 @@ private extension View {
                     contentHeight: geometry.contentSize.height,
                     viewportHeight: geometry.containerSize.height)
             } action: { old, new in
-                // pagesAhead > 0: threshold in VIEWPORT units (screens) —
-                // ASDK-style leadingScreens prefetch, the region scales with
-                // the current viewport; = 0: static pixel threshold.
-                let threshold = pagesAhead > 0
-                    ? CGFloat(pagesAhead) * new.viewportHeight
-                    : pixelThreshold
+                // The mode decides the region: .pagesAhead → threshold in
+                // VIEWPORT units (screens) — ASDK-style leadingScreens
+                // prefetch, the region scales with the current viewport;
+                // .pixelThreshold → static pixel threshold.
+                let threshold: CGFloat
+                switch mode {
+                case .pixelThreshold(let points):
+                    threshold = points
+                case .pagesAhead(let screens):
+                    threshold = CGFloat(max(screens, 0)) * new.viewportHeight
+                }
                 let isNearBottom = new.distanceFromBottom <= threshold
                 let wasNearBottom = old.distanceFromBottom <= threshold
                 guard isNearBottom,
@@ -792,7 +793,7 @@ private struct PagedListPreview: View {
                 page = 1
                 items = (1...Self.rowsPerPage).map { pagedFixtureItem(at: $0, page: 1) }
             }
-            .onLoadMore(pagesAhead: 2) {
+            .onLoadMore(mode: .pagesAhead(2)) {
                 guard page < Self.lastPage else { return }
                 try? await Task.sleep(for: .seconds(0.4))
                 let next = page + 1

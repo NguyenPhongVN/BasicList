@@ -15,6 +15,21 @@ public enum BasicListHeaderMode {
     case pinnedTop
 }
 
+/// How `onLoadMore` decides to fire — the two mechanisms are mutually
+/// exclusive BY TYPE: there is no combination where one silently overrides
+/// the other.
+public enum BasicListLoadMoreMode: Equatable, Sendable {
+    /// Static pixel threshold — fires when the viewport is within this many
+    /// points of the content bottom. The package default is
+    /// `BasicListScrollSentinel.defaultBottomThreshold` (600pt).
+    case pixelThreshold(CGFloat)
+    /// ASDK/IGListKit-style prefetch — the bottom region = N × viewport
+    /// height; keeps N screens of pages ahead of the user. The engine can't
+    /// know the page size (data in / events out) — the unit of measure is
+    /// the viewport.
+    case pagesAhead(Int)
+}
+
 /// One group with its own sticky header — the typical shape: one day + the
 /// transactions of that day.
 ///

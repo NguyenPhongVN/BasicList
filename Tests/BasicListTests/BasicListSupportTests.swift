@@ -125,6 +125,14 @@ struct VocabularyTests {
         if case .pinnedTop = pinned {} else { Issue.record("Missing case .pinnedTop") }
     }
 
+    @Test("Load-more mode — both cases carry their values, exclusive by type")
+    func loadMoreModeCases() {
+        #expect(BasicListLoadMoreMode.pixelThreshold(400) == .pixelThreshold(400))
+        #expect(BasicListLoadMoreMode.pagesAhead(2) == .pagesAhead(2))
+        #expect(BasicListLoadMoreMode.pagesAhead(2) != .pagesAhead(3))
+        #expect(BasicListLoadMoreMode.pixelThreshold(400) != .pagesAhead(2))
+    }
+
     @Test("Spacer keeps the height passed in")
     func spacerKeepsHeight() {
         #expect(BasicListSpacer(height: 42).height == 42)

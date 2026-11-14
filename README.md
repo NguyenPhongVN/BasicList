@@ -17,7 +17,7 @@ Standalone package, pure SwiftUI — **reads no app design layer**: every color/
 - ✅ Per-section footer — symmetric with the sticky header
 - ✅ Full-area row tap, complete VoiceOver support (button trait + accessibility actions)
 - ✅ Pull-to-refresh (errors are handled inside the handler — the spinner ends by itself)
-- ✅ Continuous load-more: geometry probe on the List body + sentinel backstop for short lists; **prefetch `pagesAhead: 2`** à la ASDK/IGListKit — loads before the user reaches the bottom
+- ✅ Continuous load-more: geometry probe on the List body + sentinel backstop for short lists; **prefetch via `mode: .pagesAhead(2)`** à la ASDK/IGListKit — loads before the user reaches the bottom
 - ✅ Flat-list reorder (`onMoveRows` + `basicEditMode`) — iOS only
 - ✅ Reorder + swipe + tap + refresh + load-more share one list with no identity conflicts
 
@@ -128,7 +128,7 @@ BasicListView(items: transactions, config: .house) { TransactionRowView($0) }
     }
     .onRowTap { vm.open($0) }
     .onRefresh { try await api.reload() }
-    .onLoadMore(pagesAhead: 2) { try await api.nextPage() }   // prefetch 2 screens before the bottom; pixelThreshold: 400 for a static pixel threshold
+    .onLoadMore(mode: .pagesAhead(2)) { try await api.nextPage() }   // prefetch 2 screens before the bottom; mode: .pixelThreshold(400) for a static threshold
 ```
 
 Reorder (flat list, iOS only — the handle appears when `editMode` is `.active`):

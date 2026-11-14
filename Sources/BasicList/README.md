@@ -90,7 +90,7 @@ one wiring file, not scattering values per screen.
 | `.onMoveRows(_:)` | Drag-to-reorder flat list — handle only appears when `editMode` is `.active` |
 | `.basicEditMode(_:)` | Pins the List's `editMode` to the screen's binding (iOS-only) |
 | `.onRefresh(_:)` | Pull-to-refresh; errors are swallowed inside the handler (`try?`), the spinner ends by itself |
-| `.onLoadMore(pagesAhead:pixelThreshold:_:)` | Continuous load-more near the bottom (default 600pt); `pagesAhead > 0` → ASDK/IGListKit-style prefetch — the bottom region = N × viewport, keeps loading before the bottom |
+| `.onLoadMore(mode:_:)` | Continuous load-more near the bottom — `mode: .pixelThreshold(CGFloat)` (default 600pt) or `mode: .pagesAhead(Int)` (ASDK/IGListKit-style prefetch, region = N × viewport); mutually exclusive by type via `BasicListLoadMoreMode` |
 
 Shared vocabulary (`BasicListSupport.swift`) — usable by both the engine and screens
 that build their own list:
@@ -119,10 +119,11 @@ lists; avoid the combination until it's needed and tested.
 3. **Loop prevention lives on the caller side (VM)**: `inFlight` blocks concurrent
    fires, `exhausted` skips when out of pages — probe/sentinel keep no state.
 4. **Prefetch `pagesAhead`** (ASDK `leadingScreensForBatching` / IGListKit style): the
-   bottom region = `pagesAhead × viewport height` instead of a static pixel threshold —
+   bottom region = N × viewport height instead of a static pixel threshold —
    inside the region, the probe keeps loading as pages attach until the distance exceeds
-   the region or pages run out. `.onLoadMore(pagesAhead: 2)` ≈ keep 2 pages ahead of the
-   user. `pagesAhead > 0` overrides `pixelThreshold`; the engine doesn't measure page
+   the region or pages run out. `.onLoadMore(mode: .pagesAhead(2))` ≈ keep 2 pages ahead
+   of the user. The mode is the `BasicListLoadMoreMode` enum — `.pixelThreshold(CGFloat)`
+   and `.pagesAhead(Int)` are mutually exclusive by type; the engine doesn't measure page
    height (data in / events out) — the unit of measure is the viewport.
 
 ### Measured behavior — simulator baseline 2026-11-14
