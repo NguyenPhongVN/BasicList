@@ -38,7 +38,7 @@ BasicListView(items: accounts, config: .house) { account in
 }
 .onRowTap { account in openDetail(account) }
 .onRefresh { try await api.reload() }
-.onLoadMore { try await api.nextPage() }
+.onLoadMore { try? await api.nextPage() }   // non-throwing: handle errors inside the handler
 ```
 
 ### Sectioned list — sticky header per group
@@ -90,7 +90,7 @@ one wiring file, not scattering values per screen.
 | `.onMoveRows(_:)` | Drag-to-reorder flat list — handle only appears when `editMode` is `.active` |
 | `.basicEditMode(_:)` | Pins the List's `editMode` to the screen's binding (iOS-only) |
 | `.onRefresh(_:)` | Pull-to-refresh; errors are swallowed inside the handler (`try?`), the spinner ends by itself |
-| `.onLoadMore(mode:_:)` | Continuous load-more near the bottom — `mode: .pixelThreshold(CGFloat)` (default 600pt) or `mode: .pagesAhead(Int)` (ASDK/IGListKit-style prefetch, region = N × viewport); mutually exclusive by type via `BasicListLoadMoreMode` |
+| `.onLoadMore(mode:_:)` | Continuous load-more near the bottom — `mode: .pixelThreshold(CGFloat)` (default 600pt) or `mode: .pagesAhead(Int)` (ASDK/IGListKit-style prefetch, region = N × viewport); mutually exclusive by type via `BasicListLoadMoreMode`. Handler is non-throwing — handle errors inside it; an empty list still fires once at attach |
 
 Shared vocabulary (`BasicListSupport.swift`) — usable by both the engine and screens
 that build their own list:

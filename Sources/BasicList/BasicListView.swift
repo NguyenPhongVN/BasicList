@@ -29,7 +29,7 @@ import SwiftUI
 /// }
 /// .basicListHeader { AccountBalanceHeader() }
 /// .onRefresh { try await api.reload() }
-/// .onLoadMore { try await api.nextPage() }
+/// .onLoadMore { try? await api.nextPage() }
 /// .rowSwipeActions { account in deleteActions(for: account) }
 ///
 /// BasicListView(sections: dayGroups, config: .house) { transaction in
@@ -81,6 +81,9 @@ public struct BasicListView<Item, Content: View>: View {
     @State private var loadGate = BasicListLoadGate()
 
     /// Items that are already `Identifiable`.
+    ///
+    /// Identity contract: `id` must be unique across the array (same contract
+    /// as `ForEach`) — duplicates produce undefined row identity.
     public init(
         items: [Item],
         config: BasicListConfig,
@@ -94,7 +97,8 @@ public struct BasicListView<Item, Content: View>: View {
     }
 
     /// Items that are not `Identifiable` — attach an id via closure, like
-    /// `ForEach(id:)`.
+    /// `ForEach(id:)`. The returned id must be unique across the array —
+    /// duplicates produce undefined row identity.
     public init(
         items: [Item],
         id: @escaping (Item) -> any Hashable,
@@ -110,6 +114,10 @@ public struct BasicListView<Item, Content: View>: View {
 
     /// A list of sections, each group with a sticky header (`section.header`)
     /// and an optional footer (`section.footer`).
+    ///
+    /// Identity contract: `section` must be unique across the array and item
+    /// ids unique within each section (same contract as `ForEach`) —
+    /// duplicates produce undefined identity.
     public init(
         sections: [BasicListSection<Item>],
         config: BasicListConfig,
@@ -152,6 +160,10 @@ public struct BasicListView<Item, Content: View>: View {
     /// hero that runs INSIDE the list (scrolls with it, keeps the list
     /// identity across the empty/loaded phases) instead of an outer `if`
     /// branch making the list appear/disappear.
+    ///
+    /// With `onLoadMore` attached, the load-more sentinel still sits after the
+    /// empty state — an empty list fires load-more exactly once at attach; the
+    /// VM's exhausted guard decides whether more pages exist.
     public func basicListEmptyState(@ViewBuilder _ builder: @escaping () -> some View) -> Self {
         var copy = self
         copy.emptyStateBuilder = { AnyView(builder()) }
@@ -172,7 +184,8 @@ public struct BasicListView<Item, Content: View>: View {
     /// `edge` defaults to `.trailing`; call again with `.leading` to get
     /// swipe from the left edge — both edges can coexist, full swipe works
     /// the same (the handler is a confirm hand-off, it never deletes the row
-    /// itself).
+    /// itself). Calling the modifier again with the SAME edge REPLACES that
+    /// edge's handler (not append) — the last call wins.
     public func rowSwipeActions(
         edge: HorizontalEdge = .trailing,
         _ handler: @escaping (Item) -> [BasicListSwipeAction]
@@ -241,10 +254,23 @@ public struct BasicListView<Item, Content: View>: View {
         return copy
     }
 
-    /// Continuous load-more — mechanics documented in `.basicListBottomProbe`
-    /// + `BasicListScrollSentinel` (probe on the List body, sentinel backstops
-    /// short lists, loop prevention lives on the VM side). The handler is the
-    /// LAST closure so trailing syntax works freely: `.onLoadMore { ... }`.
+    /// Continuous load-more — mechanics documented in `BasicListBottomProbeModifier`
+    /// (engine-private, this file) + `BasicListScrollSentinel` (probe on the List
+    /// body, sentinel backstops short lists, loop prevention lives on the VM
+    /// side). The handler is the LAST closure so trailing syntax works freely:
+    /// `.onLoadMore { ... }`.
+    ///
+    /// The handler is NON-THROWING — handle errors inside it (alert/state owned
+    /// by the screen); the engine has no error surface to present them.
+    ///
+    /// Fires run as unstructured Tasks (fire + cooldown retries) that are NOT
+    /// cancelled when the list leaves the hierarchy — the handler may still run
+    /// after the view disappears. Keep handler work VM-owned so late runs are
+    /// harmless.
+    ///
+    /// An EMPTY list still fires once at attach through the sentinel (it
+    /// materializes immediately) — the VM's exhausted/loop guards decide what
+    /// happens next, the engine does not skip the fire.
     ///
     /// The mode is an ENUM passed in — the two mechanisms are mutually
     /// exclusive BY TYPE, no silent override:

@@ -130,7 +130,7 @@ BasicListView(items: transactions, config: .house) { TransactionRowView($0) }
     }
     .onRowTap { vm.open($0) }
     .onRefresh { try await api.reload() }
-    .onLoadMore(mode: .pagesAhead(2)) { try await api.nextPage() }   // prefetch 2 screens before the bottom; mode: .pixelThreshold(400) for a static threshold
+    .onLoadMore(mode: .pagesAhead(2)) { try? await api.nextPage() }   // prefetch 2 screens before the bottom; handler is non-throwing — handle errors inside it; mode: .pixelThreshold(400) for a static threshold
 ```
 
 Reorder (flat list, iOS only — the handle appears when `editMode` is `.active`):

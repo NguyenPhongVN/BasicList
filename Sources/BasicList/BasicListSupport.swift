@@ -27,6 +27,12 @@ public enum BasicListLoadMoreMode: Equatable, Sendable {
     /// height; keeps N screens of pages ahead of the user. The engine can't
     /// know the page size (data in / events out) — the unit of measure is
     /// the viewport.
+    ///
+    /// ⚠️ "viewport" = `ScrollGeometry.containerSize`, which is NOT stable
+    /// across embeddings (782/724/702/844 measured — see
+    /// `Docs/LoadMoreVerification.md` §2, F4 "PARTLY FIXED"): when insets or
+    /// margins shrink the real visible area, the region can be LARGER than N
+    /// visible screens. Fixed absolute semantics → use `.pixelThreshold`.
     case pagesAhead(Int)
 }
 
@@ -189,7 +195,7 @@ public struct BasicListSpacer: View {
 /// (no gate) it fires unconditionally.
 ///
 /// Role: backstops the attach-time fire for short lists. The primary load-more
-/// runs through the geometry probe on the List body (`.basicListBottomProbe`,
+/// runs through the geometry probe on the List body (`BasicListBottomProbeModifier`,
 /// private to the engine) — the observer lives for the whole list lifetime and
 /// fires on state transitions into the bottom region. But when the first page
 /// doesn't fill a screen yet, no geometry change can happen after the probe
@@ -204,7 +210,7 @@ public struct BasicListScrollSentinel: View {
 
     /// Enter the trigger region when still this far from the bottom — the
     /// default threshold shared with the List-body probe
-    /// (`.basicListBottomProbe`).
+    /// (`BasicListBottomProbeModifier` in BasicListView.swift).
     public static let defaultBottomThreshold: CGFloat = 600
 
     package let onLoadMore: () async -> Void
