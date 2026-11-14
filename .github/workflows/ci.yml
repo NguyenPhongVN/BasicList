@@ -25,3 +25,22 @@ jobs:
 
       - name: Test
         run: swift test
+
+  # The load-more engine is only covered by the iOS simulator suite
+  # (LoadMoreSimulatorTests compiles empty on a macOS host — see
+  # Docs/LoadMoreVerification.md §6). It MUST run on every change to the
+  # probe/sentinel/gate; destination mirrors the documented local command —
+  # if a runner image lacks this simulator name, swap the destination here.
+  simulator-suite:
+    name: Load-more simulator suite (iPhone 18 Pro Max)
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Test
+        run: xcodebuild test -scheme BasicList -destination 'platform=iOS Simulator,name=iPhone 18 Pro Max' -only-testing:BasicListTests/LoadMoreSimulatorTests
