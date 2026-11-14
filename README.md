@@ -17,7 +17,7 @@ Package độc lập, thuần SwiftUI — **không đọc design layer của app
 - ✅ Footer cho **từng section** — đối xứng với sticky header
 - ✅ Row tap toàn vùng, VoiceOver đầy đủ (button trait + accessibility actions)
 - ✅ Pull-to-refresh (lỗi handler tự xử lý trong handler — spinner tự kết thúc)
-- ✅ Load-more liên tục: probe geometry trên thân List + sentinel bù list ngắn
+- ✅ Load-more liên tục: probe geometry trên thân List + sentinel bù list ngắn; **prefetch `pagesAhead: 2`** kiểu ASDK/IGListKit — nạp trước khi user tới đáy
 - ✅ Reorder flat list (`onMoveRows` + `basicEditMode`) — iOS only
 - ✅ Reorder + swipe + tap + refresh + load-more **dùng chung một list không xung đột identity**
 
@@ -124,7 +124,7 @@ BasicListView(items: transactions, config: .house) { TransactionRowView($0) }
     }
     .onRowTap { vm.open($0) }
     .onRefresh { try await api.reload() }
-    .onLoadMore { try await api.nextPage() }            // pixelThreshold: 400 để đổi ngưỡng
+    .onLoadMore(pagesAhead: 2) { try await api.nextPage() }   // prefetch 2 màn hình trước đáy; pixelThreshold: 400 nếu muốn ngưỡng pixel tĩnh
 ```
 
 Reorder (flat list, iOS only — handle hiện khi `editMode` `.active`):

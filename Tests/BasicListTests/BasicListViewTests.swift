@@ -34,7 +34,8 @@ struct BasicListViewTests {
         .onMoveRows { _, _ in }
         .onRefresh {}
         .onLoadMore {}
-        .onLoadMore({}, pixelThreshold: 100)
+        .onLoadMore(pagesAhead: 2) {}
+        .onLoadMore(pixelThreshold: 100) {}
         _ = view.body
     }
 

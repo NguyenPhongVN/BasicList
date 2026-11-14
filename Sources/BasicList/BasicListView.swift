@@ -73,6 +73,7 @@ public struct BasicListView<Item, Content: View>: View {
     private var onRefreshHandler: (() async throws -> Void)?
     private var onLoadMoreHandler: (() async -> Void)?
     private var bottomThreshold = BasicListScrollSentinel.defaultBottomThreshold
+    private var pagesAhead = 0
 
     /// Item tự `Identifiable`.
     public init(
@@ -233,15 +234,27 @@ public struct BasicListView<Item, Content: View>: View {
 
     /// Load-more liên tục — cơ chế xem doc `.basicListBottomProbe` +
     /// `BasicListScrollSentinel` (probe trên thân List, sentinel bù fire
-    /// list ngắn, chặn lặp nằm phía VM). `pixelThreshold` đổi ngưỡng vào
-    /// vùng đáy (mặc định 600pt).
+    /// list ngắn, chặn lặp nằm phía VM). Handler là closure CUỐI để gọi
+    /// trailing thoải mái: `.onLoadMore { ... }`.
+    ///
+    /// Prefetch kiểu ASDK/IGListKit — `pagesAhead`: nạp TRƯỚC khi user
+    /// tới đáy. Vùng đáy = `pagesAhead × chiều cao viewport` (đơn vị
+    /// màn hình, không đo chiều cao từng trang — engine không biết page
+    /// size theo data in/events out): trong vùng, probe nạp LIÊN TỤC
+    /// theo từng trang đính vào cho tới khi cách đáy hơn vùng hoặc hết
+    /// trang (VM `exhausted`). `pagesAhead: 2` ≈ "giữ sẵn 2 trang phía
+    /// trước". `pagesAhead > 0` đè `pixelThreshold`; muốn ngưỡng pixel
+    /// tĩnh thì để `pagesAhead: 0` và dùng `pixelThreshold` (mặc định
+    /// 600pt).
     public func onLoadMore(
-        _ handler: @escaping () async -> Void,
-        pixelThreshold: CGFloat = BasicListScrollSentinel.defaultBottomThreshold
+        pagesAhead: Int = 0,
+        pixelThreshold: CGFloat = BasicListScrollSentinel.defaultBottomThreshold,
+        _ handler: @escaping () async -> Void
     ) -> Self {
         var copy = self
         copy.onLoadMoreHandler = handler
         copy.bottomThreshold = pixelThreshold
+        copy.pagesAhead = pagesAhead
         return copy
     }
 
@@ -270,7 +283,8 @@ public struct BasicListView<Item, Content: View>: View {
         }
         .basicListRefreshable(onRefreshHandler)
         .basicListBottomProbe(
-            bottomThreshold: bottomThreshold,
+            pagesAhead: pagesAhead,
+            pixelThreshold: bottomThreshold,
             onLoadMoreHandler)
         #if os(iOS)
         .basicListEditMode(editModeBinding)
@@ -448,7 +462,8 @@ private extension View {
     /// state, action vô trạng thái (old/new từ chính modifier).
     @ViewBuilder
     func basicListBottomProbe(
-        bottomThreshold: CGFloat,
+        pagesAhead: Int,
+        pixelThreshold: CGFloat,
         _ handler: (() async -> Void)?
     ) -> some View {
         if let handler {
@@ -457,10 +472,17 @@ private extension View {
                     distanceFromBottom: geometry.contentSize.height
                         - geometry.contentInsets.bottom
                         - (geometry.contentOffset.y + geometry.containerSize.height),
-                    contentHeight: geometry.contentSize.height)
+                    contentHeight: geometry.contentSize.height,
+                    viewportHeight: geometry.containerSize.height)
             } action: { old, new in
-                let isNearBottom = new.distanceFromBottom <= bottomThreshold
-                let wasNearBottom = old.distanceFromBottom <= bottomThreshold
+                // pagesAhead > 0: ngưỡng theo VIEWPORT (màn hình) —
+                // prefetch kiểu ASDK leadingScreens, vùng phóng theo
+                // viewport hiện tại; = 0: ngưỡng pixel tĩnh.
+                let threshold = pagesAhead > 0
+                    ? CGFloat(pagesAhead) * new.viewportHeight
+                    : pixelThreshold
+                let isNearBottom = new.distanceFromBottom <= threshold
+                let wasNearBottom = old.distanceFromBottom <= threshold
                 guard isNearBottom,
                       !wasNearBottom || new.contentHeight != old.contentHeight
                 else { return }
@@ -475,10 +497,13 @@ private extension View {
 /// Probe đáy của load-more — giá trị biến đổi theo scroll geometry để
 /// so sánh "đã tới vùng đáy". `contentHeight` nằm trong probe để trang
 /// mới đính vào (list cao thêm) là một PHÉP ĐỔI riêng, dù khoảng cách
-/// đáy tình cờ giữ nguyên.
+/// đáy tình cờ giữ nguyên. `viewportHeight` phục vụ ngưỡng prefetch
+/// `pagesAhead` (N × màn hình) — action closure chỉ thấy probe value,
+/// không thấy geometry thô.
 private struct BasicListBottomProbe: Equatable {
     let distanceFromBottom: CGFloat
     let contentHeight: CGFloat
+    let viewportHeight: CGFloat
 }
 
 // MARK: - Preview
@@ -740,7 +765,7 @@ private struct PagedListPreview: View {
                 PreviewHeader(
                     title: "Recent activity",
                     subtitle: page < Self.lastPage
-                        ? "Page \(page)/\(Self.lastPage) — scroll to bottom to load more"
+                        ? "Page \(page)/\(Self.lastPage) — prefetching 2 screens ahead"
                         : "Page \(page)/\(Self.lastPage) — exhausted, load-more no-ops")
             }
             .onRefresh {
@@ -748,7 +773,7 @@ private struct PagedListPreview: View {
                 page = 1
                 items = (1...Self.rowsPerPage).map { pagedFixtureItem(at: $0, page: 1) }
             }
-            .onLoadMore {
+            .onLoadMore(pagesAhead: 2) {
                 guard page < Self.lastPage else { return }
                 try? await Task.sleep(for: .seconds(0.4))
                 let next = page + 1

@@ -91,7 +91,7 @@ file wiring đó, không rải giá trị ở từng màn.
 | `.onMoveRows(_:)` | Kéo-thả sắp xếp lại flat list — handle chỉ hiện khi `editMode` `.active` |
 | `.basicEditMode(_:)` | Ghim `editMode` của List theo binding của screen (iOS-only) |
 | `.onRefresh(_:)` | Pull-to-refresh; lỗi nuốt trong handler (`try?`), spinner tự kết thúc |
-| `.onLoadMore(pixelThreshold:)` | Load-more liên tục khi cuộn sát đáy (mặc định 600pt) |
+| `.onLoadMore(pagesAhead:pixelThreshold:_:)` | Load-more liên tục khi cuộn sát đáy (mặc định 600pt); `pagesAhead > 0` → prefetch kiểu ASDK/IGListKit — vùng đáy = N × viewport, nạp liên tục trước khi tới đáy |
 
 Vocabulary dùng chung (`BasicListSupport.swift`) — engine và screen tự
 dựng list đều dùng được:
@@ -121,6 +121,13 @@ flat list; tránh kết hợp cho tới khi cần và đã test.
 3. **Chặn lặp nằm phía caller (VM)**: lượt fire trùng (probe + sentinel
    cùng nổ) do `Paging.inFlight` chặn song song, `exhausted` bỏ qua khi
    hết trang — probe/sentinel không giữ state.
+4. **Prefetch `pagesAhead`** (kiểu ASDK `leadingScreensForBatching` /
+   IGListKit): vùng đáy = `pagesAhead × chiều cao viewport` thay vì
+   pixel tĩnh — trong vùng, probe nạp LIÊN TỤC theo từng trang đính
+   vào cho tới khi cách đáy hơn vùng hoặc hết trang. `.onLoadMore(
+   pagesAhead: 2)` ≈ giữ sẵn 2 trang phía trước user. `pagesAhead > 0`
+   đè `pixelThreshold`; engine không đo chiều cao từng trang (data in/
+   events out) — đơn vị đo là viewport.
 
 ## 6. Swipe actions — rule bắt buộc
 
