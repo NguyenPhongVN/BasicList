@@ -26,7 +26,7 @@ Package độc lập, thuần SwiftUI — **không đọc design layer của app
 | | |
 |---|---|
 | Platforms | iOS 26+ · macOS 26+ · tvOS 26+ · watchOS 26+ · visionOS 26+ |
-| Swift | tools 6.4, Swift 6 mode, `ApproachableConcurrency` |
+| Swift | tools 6.3, Swift 6 mode, `ApproachableConcurrency` |
 | Dependencies | **NONE** — thuần SwiftUI |
 
 ## Cài đặt
