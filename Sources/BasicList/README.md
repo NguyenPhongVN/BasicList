@@ -1,21 +1,20 @@
 # BasicList
 
-Engine list house — thuần SwiftUI, **deps NONE** (không phụ thuộc module
-nào trong package; preview/demo dùng literal spacing). Module **không
-đọc design layer của app** (không màu design, không tab metrics, không
-token): mọi màu/thông số truyền vào qua `BasicListConfig` — engine
-quyết định cơ chế, caller quyết định diện mạo.
+House list engine — pure SwiftUI, **deps NONE** (no dependency on any module inside the
+package; preview/demo uses literal spacing). The module **reads no app design layer**
+(no design colors, no tab metrics, no tokens): every color/metric comes in through
+`BasicListConfig` — the engine decides the mechanism, the caller decides the look.
 
-## 1. Chọn view nào?
+## 1. Which view?
 
-| Tình huống | Dùng |
+| Situation | Use |
 |---|---|
-| Có mảng items, cần header/empty-state/swipe/tap/refresh/load-more có sẵn | `BasicListView` |
-| Screen tự dựng sections/rows phức tạp riêng (sections tuỳ ý, content xen kẽ) | `BasicPlainList` |
+| Have an items array, need built-in header/empty-state/swipe/tap/refresh/load-more | `BasicListView` |
+| Screen builds its own complex sections/rows (custom sections, interleaved content) | `BasicPlainList` |
 
-`BasicListView` dựng TRÊN `BasicPlainList` — mọi list của app cùng
-một ngôn ngữ nền: trong suốt (screen tự đổ nền của mình), content
-margins 0, row height tối thiểu 0.
+`BasicListView` is built ON TOP of `BasicPlainList` — every list in the app shares one
+render language: transparent (the screen pours its own background), content margins 0,
+minimum row height 0.
 
 ## 2. Quick start
 
@@ -23,15 +22,15 @@ margins 0, row height tối thiểu 0.
 
 ```swift
 BasicListView(items: accounts, config: .house) { account in
-    AccountRowView(account)          // cell tự .basicListRowStyle()
+    AccountRowView(account)          // the cell applies .basicListRowStyle() itself
 }
-.basicListHeader { AccountBalanceHeader() }   // header cuộn cùng nội dung
-.basicListEmptyState { AccountEmptyView() }   // hiện khi items rỗng
+.basicListHeader { AccountBalanceHeader() }   // header scrolls with content
+.basicListEmptyState { AccountEmptyView() }   // shown when items is empty
 .rowSwipeActions { account in
     [
-        BasicListSwipeAction(title: "Sửa", systemImage: "pencil") { edit(account) },
-        BasicListSwipeAction(title: "Xoá", systemImage: "trash",
-                              isDestructive: true) { confirmDelete(account) },
+        BasicListSwipeAction(title: "Edit", systemImage: "pencil") { edit(account) },
+        BasicListSwipeAction(title: "Delete", systemImage: "trash",
+                             isDestructive: true) { confirmDelete(account) },
     ]
 }
 .rowContextMenu { account in
@@ -42,15 +41,15 @@ BasicListView(items: accounts, config: .house) { account in
 .onLoadMore { try await api.nextPage() }
 ```
 
-### Sectioned list — sticky header từng nhóm
+### Sectioned list — sticky header per group
 
 ```swift
 let sections = Dictionary(grouping: transactions, by: \.day)
     .map { day, txns in
         BasicListSection(section: day, items: txns, itemID: \.id) {
-            TransactionDayHeader(day)      // sticky khi cuộn
+            TransactionDayHeader(day)      // sticky while scrolling
         } footer: {
-            TransactionDayFooter(day)      // tuỳ chọn — nhóm không cần thì dùng init không footer
+            TransactionDayFooter(day)      // optional — omit the footer init when the group needs none
         }
     }
 
@@ -59,109 +58,122 @@ BasicListView(sections: sections, config: .house) { transaction in
 }
 ```
 
-> `BasicListView` là struct immutable — mọi modifier trả `Self`, chain
-> thoải mái. Item chưa `Identifiable` dùng
-> `init(items:id:config:content:)`, dán id qua closure như `ForEach(id:)`.
+> `BasicListView` is an immutable struct — every modifier returns `Self`, so chains are
+> free. Items that aren't `Identifiable` use `init(items:id:config:content:)`, attaching
+> an id via closure like `ForEach(id:)`.
 
 ## 3. Config — `BasicListConfig`
 
-**Bắt buộc truyền khi dựng** — không có default gắn giá trị design
-trong module: thiếu config là lỗi compile thay vì một diện mạo lặng lẽ.
+**Must be passed at construction** — the module has no default that injects a design
+value: missing config is a compile error instead of a silent look.
 
-| Field | Nghĩa | App truyền |
+| Field | Meaning | What the app passes |
 |---|---|---|
-| `destructiveActionTint` | Tint nút swipe có cờ `isDestructive: true` (action thường giữ tint hệ thống) | màu đỏ destructive của app |
-| `bottomClearance` | Spacer đáy list — clearing khi list nằm trên tab bar; context không che đáy truyền 0 | clearance tab bar chuẩn của app |
+| `destructiveActionTint` | Tint of the swipe action flagged `isDestructive: true` (regular actions keep the system tint) | the app's destructive red |
+| `bottomClearance` | Bottom spacer of the list — clearance when the list sits above a tab bar; contexts that don't cover the bottom pass 0 | the app's standard tab-bar clearance |
 
-**Wiring một điểm duy nhất** — app layer tự đặt extension
-`BasicListConfig.house` tập hợp giá trị chuẩn của app. Call site luôn
-truyền `config: .house`; muốn đổi diện mạo list toàn app chỉ sửa đúng
-file wiring đó, không rải giá trị ở từng màn.
+**Single-point wiring** — the app layer defines an extension
+`BasicListConfig.house` collecting the app's standard values. Call sites always pass
+`config: .house`; changing the look of every list in the app means editing exactly that
+one wiring file, not scattering values per screen.
 
-## 4. API của `BasicListView`
+## 4. `BasicListView` API
 
-| API | Tác dụng |
+| API | Effect |
 |---|---|
-| `.basicListHeader(mode:_:)` | Header đầu list — `.scrollsWithContent` (cuộn cùng) hoặc `.pinnedTop` (ghim đỉnh) |
-| `.basicListEmptyState(_:)` | Hero rỗng chạy TRONG list (giữ identity list giữa 2 pha rỗng/có data) |
-| `.basicListFooter(_:)` | Nội dung đáy — sau rows, trước sentinel load-more |
-| `.rowSwipeActions(edge:_:)` | Handler trả `[BasicListSwipeAction]` cho từng item — `.trailing` mặc định; gọi thêm lần nữa với `.leading` cho swipe mép trái |
-| `.rowContextMenu(_:)` | Menu tap-giữ theo item — không chiếm tap thường lẫn cử chỉ swipe |
-| `.onRowTap(_:)` | Tap toàn vùng row (contentShape) — không chiếm cử chỉ swipe |
-| `.onMoveRows(_:)` | Kéo-thả sắp xếp lại flat list — handle chỉ hiện khi `editMode` `.active` |
-| `.basicEditMode(_:)` | Ghim `editMode` của List theo binding của screen (iOS-only) |
-| `.onRefresh(_:)` | Pull-to-refresh; lỗi nuốt trong handler (`try?`), spinner tự kết thúc |
-| `.onLoadMore(pagesAhead:pixelThreshold:_:)` | Load-more liên tục khi cuộn sát đáy (mặc định 600pt); `pagesAhead > 0` → prefetch kiểu ASDK/IGListKit — vùng đáy = N × viewport, nạp liên tục trước khi tới đáy |
+| `.basicListHeader(mode:_:)` | Header at the top of the list — `.scrollsWithContent` (scrolls with content) or `.pinnedTop` (pinned) |
+| `.basicListEmptyState(_:)` | Empty hero that runs INSIDE the list (keeps list identity across the empty/loaded phases) |
+| `.basicListFooter(_:)` | Bottom content — after rows, before the load-more sentinel |
+| `.rowSwipeActions(edge:_:)` | Handler returns `[BasicListSwipeAction]` per item — `.trailing` by default; call again with `.leading` for left-edge swipe |
+| `.rowContextMenu(_:)` | Long-press menu per item — doesn't steal regular taps or swipes |
+| `.onRowTap(_:)` | Full-area row tap (contentShape) — doesn't steal the swipe gesture |
+| `.onMoveRows(_:)` | Drag-to-reorder flat list — handle only appears when `editMode` is `.active` |
+| `.basicEditMode(_:)` | Pins the List's `editMode` to the screen's binding (iOS-only) |
+| `.onRefresh(_:)` | Pull-to-refresh; errors are swallowed inside the handler (`try?`), the spinner ends by itself |
+| `.onLoadMore(pagesAhead:pixelThreshold:_:)` | Continuous load-more near the bottom (default 600pt); `pagesAhead > 0` → ASDK/IGListKit-style prefetch — the bottom region = N × viewport, keeps loading before the bottom |
 
-Vocabulary dùng chung (`BasicListSupport.swift`) — engine và screen tự
-dựng list đều dùng được:
+Shared vocabulary (`BasicListSupport.swift`) — usable by both the engine and screens
+that build their own list:
 
-| Type/helper | Nghĩa |
+| Type/helper | Meaning |
 |---|---|
-| `BasicListSection` | Một nhóm + header sticky + footer tuỳ chọn; header/footer lưu CLOSURE (chỉ dựng khi group thật sự render) |
-| `BasicListSwipeAction` | Một swipe action; tint destructive lấy từ config, không nằm trong action |
-| `BasicListSpacer(height:)` | Row trong suốt cao `height` — đệm cuộn-cùng-nội dung |
-| `BasicListScrollSentinel` | Row 1pt fire `onAppear` — dùng như row cuối khi screen tự dựng list + load-more riêng |
-| `.basicListRowStyle()` | Style chuẩn 1 row (không inset/separator, nền clear) — cell của bạn nên gọi |
+| `BasicListSection` | One group + sticky header + optional footer; header/footer stored as CLOSURES (built only when the group actually renders) |
+| `BasicListSwipeAction` | One swipe action; the destructive tint comes from config, not from the action |
+| `BasicListSpacer(height:)` | Transparent row of `height` — scrolls-with-content padding |
+| `BasicListScrollSentinel` | 1pt row that fires on `onAppear` — use as the last row when a screen builds its own list + load-more |
+| `.basicListRowStyle()` | Standard style for one row (no insets/separator, clear background) — your cell should call it |
 
-⚠️ `.pinnedTop` + sectioned **chưa kiểm chứng** — pinned hiện chỉ đi với
-flat list; tránh kết hợp cho tới khi cần và đã test.
+⚠️ `.pinnedTop` + sectioned **is unverified** — pinned is currently only used with flat
+lists; avoid the combination until it's needed and tested.
 
-## 5. Load-more vận hành thế nào
+## 5. How load-more works
 
-1. **Probe geometry** gắn TRÊN THÂN List (`onScrollGeometryChange`) —
-   observer sống trọn vòng đời list (khác cơ chế cũ gắn probe lên row
-   sentinel mà List lazy chỉ materialize khi user đã cuộn sát đáy).
-   Fire theo CHUYỂN TRẠNG THÁI: đi vào vùng đáy, hoặc trang mới đính
-   vào mà vẫn trong vùng (nạp tiếp liên tục cho tới khi ra khỏi vùng
-   hoặc hết trang).
-2. **Sentinel** (row 1pt cuối list) bù fire lúc gắn cho list ngắn —
-   trang đầu chưa đủ màn thì không có phép đổi geometry nào sau lúc
-   probe gắn.
-3. **Chặn lặp nằm phía caller (VM)**: lượt fire trùng (probe + sentinel
-   cùng nổ) do `Paging.inFlight` chặn song song, `exhausted` bỏ qua khi
-   hết trang — probe/sentinel không giữ state.
-4. **Prefetch `pagesAhead`** (kiểu ASDK `leadingScreensForBatching` /
-   IGListKit): vùng đáy = `pagesAhead × chiều cao viewport` thay vì
-   pixel tĩnh — trong vùng, probe nạp LIÊN TỤC theo từng trang đính
-   vào cho tới khi cách đáy hơn vùng hoặc hết trang. `.onLoadMore(
-   pagesAhead: 2)` ≈ giữ sẵn 2 trang phía trước user. `pagesAhead > 0`
-   đè `pixelThreshold`; engine không đo chiều cao từng trang (data in/
-   events out) — đơn vị đo là viewport.
+1. **Geometry probe** attached to the List BODY (`onScrollGeometryChange`) — the observer
+   lives for the whole list lifetime (unlike attaching the probe to a sentinel row, which
+   a lazy List only materializes when the user has already scrolled near the bottom).
+   Fires on STATE TRANSITIONS: entering the bottom region, or a new page attaching while
+   still in the region (keeps loading continuously until out of the region or out of
+   pages).
+2. **Sentinel** (1pt row at the end of the list) fires `onAppear` — backstop for short
+   lists (< one screen).
+3. **Loop prevention lives on the caller side (VM)**: `inFlight` blocks concurrent
+   fires, `exhausted` skips when out of pages — probe/sentinel keep no state.
+4. **Prefetch `pagesAhead`** (ASDK `leadingScreensForBatching` / IGListKit style): the
+   bottom region = `pagesAhead × viewport height` instead of a static pixel threshold —
+   inside the region, the probe keeps loading as pages attach until the distance exceeds
+   the region or pages run out. `.onLoadMore(pagesAhead: 2)` ≈ keep 2 pages ahead of the
+   user. `pagesAhead > 0` overrides `pixelThreshold`; the engine doesn't measure page
+   height (data in / events out) — the unit of measure is the viewport.
 
-## 6. Swipe actions — rule bắt buộc
+### Measured behavior — simulator baseline 2026-11-14
+([Docs/LoadMoreVerification.md](../../Docs/LoadMoreVerification.md))
 
-- **KHÔNG dùng `role: .destructive`**: destructive-role + full swipe
-  kích hoạt animation trượt row đi (SwiftUI coi row đã bị xoá) — không
-  render lại thì row mất luôn dù data nguyên. Full swipe nổ handler,
-  handler là hand-off confirm riêng (popup) của screen.
-- Tint đỏ **chỉ** áp cho action `isDestructive: true`, màu lấy từ
-  `config.destructiveActionTint`; action thường giữ tint hệ thống.
-- Hai action trùng title vẫn là hai nút riêng (id theo vị trí, không id
-  theo title).
+- The probe DOES fire on attach for lists already inside the region (the zero→settled
+  transition is a geometry change) — the sentinel is a backstop, not the main short-list
+  mechanism.
+- Each region entry currently fires ~2 loads (the transition + List's content-size
+  estimate steps + the sentinel), sequentially 1–400 ms apart → a VM-side `inFlight`
+  guard does NOT block them — measured 2.1–2.2 loads per entry.
+- Attaching a short list fires twice → 2 pages load at open.
+- The current distance is biased by how the list is embedded (± insets) — a list without
+  bottom insets looks correct; a list under a tab bar fires ~1× bottom-inset early.
+- Chain / exhausted / idle stop correctly — no infinite loop (measured idle-fires=0).
+
+⚠️ The points above are measured known issues awaiting a fix (plan + acceptance criteria
+pre-registered in the verification doc). Any change to the probe/sentinel MUST re-run the
+harness and compare against the pre-registered table in that document.
+
+## 6. Swipe actions — mandatory rules
+
+- **Never use `role: .destructive`**: destructive-role + full swipe triggers the row
+  slide-away animation (SwiftUI considers the row deleted) — if nothing re-renders, the
+  row disappears even though the data is intact. Full swipe fires the handler; the
+  handler is the screen's own confirm hand-off (popup).
+- The red tint applies **only** to actions with `isDestructive: true`, taken from
+  `config.destructiveActionTint`; regular actions keep the system tint.
+- Two actions with the same title remain two separate buttons (identity by position,
+  not by title).
 
 ## 7. Accessibility
 
-- Row có tap → trait `.isButton` + `accessibilityAction` — rotor/tap
-  đôi kích hoạt được, không chỉ cử chỉ tap thường.
-- Swipe actions expose `.accessibilityAction(named:)` — cử chỉ swipe
-  không tồn tại với VoiceOver.
-- Sentinel/spacer ẩn khỏi VoiceOver (row ảo cơ học, không phải nội dung).
+- Row with tap → trait `.isButton` + `accessibilityAction` — rotor/double-tap activates
+  it, not just the raw tap gesture.
+- Swipe actions expose `.accessibilityAction(named:)` — the swipe gesture doesn't exist
+  for VoiceOver.
+- Sentinel/spacer are hidden from VoiceOver (mechanical virtual rows, not content).
 
 ## 8. Preview
 
-6 hình demo sống trong `BasicListView.swift` — mỗi hình một diện mạo
-riêng (row glyph tròn màu + tiền, không phải `Text` trắng): flat
-(swipe/tap/load-more/empty-state), sectioned sticky header, ít dòng,
-4 trang phân trang + refresh đè load-more, refresh spinner chậm, refresh
-lỗi tự xử lý trong handler. Config neutral — giá trị design thật chỉ
-tồn tại ở app (`BasicListConfig.house`).
+6 live demo shapes in `BasicListView.swift` — each with its own look (row = colored
+glyph + money, not a bare `Text`): flat (swipe/tap/load-more/empty-state), sectioned
+sticky headers, few rows, 4-page pagination + refresh on top of load-more, slow refresh
+spinner, refresh error handled inside the handler. Neutral config — the real design
+values exist only in the app (`BasicListConfig.house`).
 
-## 9. Ghi chú module
+## 9. Module notes
 
-- Package độc lập, product `BasicList`. API `public` đúng mức cần thiết
-  (types + init + modifier caller gọi); internals engine (probe, swipe
-  render, Row/Group) vẫn private. App layer import tường minh
-  `import BasicList`.
-- Data in, events out xuyên suốt: engine không giữ state nghiệp vụ,
-  nguồn dữ liệu duy nhất là mảng/sections caller đưa vào.
+- Standalone package, product `BasicList`. `public` API is exactly what callers need
+  (types + inits + modifiers); engine internals (probe, swipe rendering, Row/Group) stay
+  private. The app layer imports explicitly with `import BasicList`.
+- Data in, events out throughout: the engine keeps no business state, the single data
+  source is the array/sections the caller passes in.

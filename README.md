@@ -2,34 +2,38 @@
 
 [![CI](https://github.com/NguyenPhongVN/BasicList/actions/workflows/ci.yml/badge.svg)](https://github.com/NguyenPhongVN/BasicList/actions/workflows/ci.yml)
 
-Engine list SwiftUI **"array vào — item ra"** cho house list — một view cho cả hình flat và sectioned (sticky header từng nhóm), kèm đầy đủ header / empty-state / footer / swipe actions / row tap / pull-to-refresh / load-more liên tục / reorder.
+A SwiftUI **"array in — item out"** list engine for house lists — one view for both flat and sectioned shapes (sticky header per group), with built-in header / empty-state / footer / swipe actions / row tap / pull-to-refresh / continuous load-more / reorder.
 
-Package độc lập, thuần SwiftUI — **không đọc design layer của app nào cả**: mọi màu/thông số truyền vào qua `BasicListConfig`.
+Standalone package, pure SwiftUI — **reads no app design layer**: every color/metric comes in through `BasicListConfig`.
 
-## Tính năng
+## Features
 
-- ✅ Flat list (`items:`) và sectioned list (`sections:`) với sticky header từng nhóm — **một** engine cho cả hai
-- ✅ Header 2 mode: lướt cùng nội dung (`.scrollsWithContent`) hoặc ghim đỉnh (`.pinnedTop`)
-- ✅ Empty-state chạy **trong** list (giữ identity list giữa hai pha rỗng/có data)
-- ✅ Footer cuộn cùng nội dung như một section thật
-- ✅ Swipe actions per-row (data in, events out) — **cả hai mép** trái/phải (`edge: .leading`), full-swipe, tint destructive theo config
-- ✅ Context menu tap-giữ theo row — không chiếm tap thường lẫn swipe
-- ✅ Footer cho **từng section** — đối xứng với sticky header
-- ✅ Row tap toàn vùng, VoiceOver đầy đủ (button trait + accessibility actions)
-- ✅ Pull-to-refresh (lỗi handler tự xử lý trong handler — spinner tự kết thúc)
-- ✅ Load-more liên tục: probe geometry trên thân List + sentinel bù list ngắn; **prefetch `pagesAhead: 2`** kiểu ASDK/IGListKit — nạp trước khi user tới đáy
-- ✅ Reorder flat list (`onMoveRows` + `basicEditMode`) — iOS only
-- ✅ Reorder + swipe + tap + refresh + load-more **dùng chung một list không xung đột identity**
+- ✅ Flat list (`items:`) and sectioned list (`sections:`) with a sticky header per group — **one** engine for both shapes
+- ✅ Header with 2 modes: scrolls with content (`.scrollsWithContent`) or pinned to the top (`.pinnedTop`)
+- ✅ Empty-state runs **inside** the list (keeps list identity across the empty/loaded phases)
+- ✅ Footer scrolls with content like a real section
+- ✅ Per-row swipe actions (data in, events out) — **both edges** (`edge: .leading`), full swipe, destructive tint from config
+- ✅ Long-press context menu per row — doesn't steal regular taps or swipes
+- ✅ Per-section footer — symmetric with the sticky header
+- ✅ Full-area row tap, complete VoiceOver support (button trait + accessibility actions)
+- ✅ Pull-to-refresh (errors are handled inside the handler — the spinner ends by itself)
+- ✅ Continuous load-more: geometry probe on the List body + sentinel backstop for short lists; **prefetch `pagesAhead: 2`** à la ASDK/IGListKit — loads before the user reaches the bottom
+- ✅ Flat-list reorder (`onMoveRows` + `basicEditMode`) — iOS only
+- ✅ Reorder + swipe + tap + refresh + load-more share one list with no identity conflicts
 
-## Yêu cầu
+## Requirements
 
 | | |
 |---|---|
-| Platforms | iOS 26+ · macOS 26+ · tvOS 26+ · watchOS 26+ · visionOS 26+ |
+| Platforms | iOS 26+ · macOS 26+ · tvOS 26+ · watchOS 26+ · visionOS 26+ — ⚠️ see note below |
 | Swift | tools 6.3, Swift 6 mode, `ApproachableConcurrency` |
-| Dependencies | **NONE** — thuần SwiftUI |
+| Dependencies | **NONE** — pure SwiftUI |
 
-## Cài đặt
+> ⚠️ **tvOS & watchOS** are declared in `Package.swift` but currently **do not build**
+> (`listRowSeparator`, `swipeActions`, `scrollContentBackground` are unavailable there).
+> iOS and macOS build fine. Repro + status: [Docs/LoadMoreVerification.md](Docs/LoadMoreVerification.md) §5.
+
+## Installation
 
 **Swift Package Manager:**
 
@@ -39,7 +43,7 @@ dependencies: [
 ]
 ```
 
-Hoặc bám branch `main` để nhận luôn thay đổi (không khuyến khích cho app thật):
+Or track `main` to pick up changes immediately (not recommended for production apps):
 
 ```swift
 dependencies: [
@@ -47,7 +51,7 @@ dependencies: [
 ]
 ```
 
-Hoặc path dependency cục bộ (khi phát triển song song trong monorepo):
+Or a local path dependency (for parallel development in a monorepo):
 
 ```swift
 dependencies: [
@@ -55,17 +59,17 @@ dependencies: [
 ]
 ```
 
-Rồi import:
+Then import:
 
 ```swift
 import BasicList
 ```
 
-## Sử dụng nhanh
+## Quick start
 
 ### Flat list
 
-Item tự `Identifiable`:
+Items that are already `Identifiable`:
 
 ```swift
 BasicListView(items: accounts, config: .house) { account in
@@ -73,7 +77,7 @@ BasicListView(items: accounts, config: .house) { account in
 }
 ```
 
-Item chưa `Identifiable` — dán id qua closure, như `ForEach(id:)`:
+Items that are not `Identifiable` — attach an id via closure, like `ForEach(id:)`:
 
 ```swift
 BasicListView(items: accounts, id: \.name, config: .house) { account in
@@ -81,14 +85,14 @@ BasicListView(items: accounts, id: \.name, config: .house) { account in
 }
 ```
 
-### Sectioned list — sticky header từng nhóm
+### Sectioned list — sticky header per group
 
 ```swift
 let sections: [BasicListSection<Transaction>] = [
     BasicListSection(section: "Today", items: todays, itemID: \.id) {
-        DayHeader("TODAY")          // sticky khi cuộn
+        DayHeader("TODAY")          // sticky while scrolling
     } footer: {
-        DayFooter("TODAY")          // tuỳ chọn — nhóm không cần thì dùng init không footer
+        DayFooter("TODAY")          // optional — omit the footer init when the group needs none
     },
     BasicListSection(section: "Yesterday", items: yesterdays, itemID: \.id) {
         DayHeader("YESTERDAY")
@@ -102,32 +106,32 @@ BasicListView(sections: sections, config: .house) { transaction in
 
 ### Chain modifiers
 
-Modifier builder-style, trả `Self` — chain thoải mái, không có state ẩn đổi theo thứ tự gọi:
+Builder-style modifiers returning `Self` — chain freely, no hidden state depends on call order:
 
 ```swift
 BasicListView(items: transactions, config: .house) { TransactionRowView($0) }
-    .basicListHeader { AccountBalanceHeader() }        // hoặc .basicListHeader(mode: .pinnedTop) { ... }
-    .basicListEmptyState { EmptyHero() }               // list rỗng
-    .basicListFooter { SuggestionCategories() }        // đáy list
-    .rowSwipeActions { transaction in                    // swipe trái (mặc định .trailing)
+    .basicListHeader { AccountBalanceHeader() }        // or .basicListHeader(mode: .pinnedTop) { ... }
+    .basicListEmptyState { EmptyHero() }               // when the list is empty
+    .basicListFooter { SuggestionCategories() }        // bottom of the list
+    .rowSwipeActions { transaction in                    // swipe from the right (default .trailing)
         [
             BasicListSwipeAction(title: "Delete", systemImage: "trash", isDestructive: true) {
                 vm.delete(transaction)
             },
         ]
     }
-    .rowSwipeActions(edge: .leading) { _ in              // thêm swipe mép trái
+    .rowSwipeActions(edge: .leading) { _ in              // add swipe from the left edge
         [BasicListSwipeAction(title: "Pin", systemImage: "pin.fill") { vm.pin($0) }]
     }
-    .rowContextMenu { transaction in                     // tap-giữ mở menu
+    .rowContextMenu { transaction in                     // long-press menu
         Button("Copy") { vm.copy(transaction) }
     }
     .onRowTap { vm.open($0) }
     .onRefresh { try await api.reload() }
-    .onLoadMore(pagesAhead: 2) { try await api.nextPage() }   // prefetch 2 màn hình trước đáy; pixelThreshold: 400 nếu muốn ngưỡng pixel tĩnh
+    .onLoadMore(pagesAhead: 2) { try await api.nextPage() }   // prefetch 2 screens before the bottom; pixelThreshold: 400 for a static pixel threshold
 ```
 
-Reorder (flat list, iOS only — handle hiện khi `editMode` `.active`):
+Reorder (flat list, iOS only — the handle appears when `editMode` is `.active`):
 
 ```swift
 BasicListView(items: categories, config: .house) { CategoryRowView($0) }
@@ -135,9 +139,10 @@ BasicListView(items: categories, config: .house) { CategoryRowView($0) }
     .basicEditMode($editMode)
 ```
 
-### List trần — `BasicPlainList`
+### Bare list — `BasicPlainList`
 
-Screen **tự dựng** sections/rows phức tạp riêng → dùng trực tiếp list trần (nền trong suốt, content margins 0, row height tối thiểu 0):
+A screen that **builds its own** complex sections/rows → use the bare list directly
+(transparent background, content margins 0, minimum row height 0):
 
 ```swift
 BasicPlainList(config: .house) {
@@ -145,33 +150,33 @@ BasicPlainList(config: .house) {
 }
 ```
 
-`BasicListView` dựng TRÊN nền này — mọi list của app cùng một ngôn ngữ render.
+`BasicListView` is built ON TOP of this — every list in the app shares one render language.
 
-### Khối dựng list riêng
+### Standalone building blocks
 
-Ba khối vocabulary vẫn áp dụng được khi screen tự viết `List`:
+The same vocabulary applies when a screen writes its own `List`:
 
 ```swift
-// Style chuẩn của MỘT row house — idempotent
+// The standard style of ONE house row — idempotent
 row.basicListRowStyle()
 
-// Spacer đáy cuộn cùng nội dung (clearing tab bar)
+// Bottom spacer that scrolls with content (clearing the tab bar)
 BasicListSpacer(height: config.bottomClearance)
 
-// Sentinel load-more cho list tự dựng
+// Load-more sentinel for self-built lists
 BasicListScrollSentinel { await vm.loadMore() }
 ```
 
 ## Config — `BasicListConfig`
 
-Mọi màu/thông số truyền vào qua config — **thiếu config là lỗi compile**, không có diện mạo lặng lẽ nào cả:
+Every color/metric comes in through the config — **missing config is a compile error**, there is no silent default look:
 
-| Field | Ý nghĩa |
+| Field | Meaning |
 |---|---|
-| `destructiveActionTint` | Tint của swipe action có cờ `isDestructive: true` |
-| `bottomClearance` | Khoảng trống đáy list (clearing tab bar) — context không che đáy thì truyền `0` |
+| `destructiveActionTint` | Tint of the swipe action flagged `isDestructive: true` |
+| `bottomClearance` | Bottom clearance of the list (clearing the tab bar) — pass `0` when the context doesn't cover the bottom |
 
-App layer tập hợp giá trị chuẩn tại **một điểm** thay vì rải màu ở từng call site:
+The app layer assembles the standard values at **one point** instead of scattering colors across call sites:
 
 ```swift
 extension BasicListConfig {
@@ -183,29 +188,32 @@ extension BasicListConfig {
 }
 ```
 
-Đổi diện mạo list toàn app chỉ sửa đúng file wiring đó.
+Changing the look of every list in the app means editing exactly that one wiring file.
 
-## Ba nguyên tắc của engine
+## The engine's three principles
 
-1. **Data in, events out** — swipe/tap/move/refresh/load-more đều là closure caller truyền vào; engine không giữ state nghiệp vụ nào, nguồn dữ liệu duy nhất là mảng/sections đưa vào.
-2. **Immutable, modifier trả `Self`** — chain thoải mái, không có state ẩn đổi theo thứ tự gọi modifier.
-3. **Design đi qua config** — không màu/thông số hardcode trong module; app quyết định diện mạo.
+1. **Data in, events out** — swipe/tap/move/refresh/load-more are all closures passed in by the caller; the engine keeps no business state, the single data source is the array/sections passed in.
+2. **Immutable, modifiers return `Self`** — chain freely, no hidden state that changes with modifier call order.
+3. **Design goes through config** — no hardcoded color/metric inside the module; the app decides the look.
 
-## API public
+## Public API
 
-| Symbol | Vai trò |
+| Symbol | Role |
 |---|---|
-| `BasicListView` | Engine chính — flat & sectioned |
-| `BasicPlainList` | List `.plain` trần — nền của mọi list house |
-| `BasicListConfig` | Màu/thông số truyền vào |
-| `BasicListSection` | Một nhóm + sticky header + footer tuỳ chọn |
-| `BasicListSwipeAction` | Mô tả một swipe action |
+| `BasicListView` | The main engine — flat & sectioned |
+| `BasicPlainList` | Bare `.plain` list — the base of every house list |
+| `BasicListConfig` | Colors/metrics passed in |
+| `BasicListSection` | One group + sticky header + optional footer |
+| `BasicListSwipeAction` | Describes one swipe action |
 | `BasicListHeaderMode` | `.scrollsWithContent` / `.pinnedTop` |
-| `BasicListSpacer` | Spacer trong suốt cuộn cùng nội dung |
-| `BasicListScrollSentinel` | Sentinel bù fire load-more list ngắn |
-| `View.basicListRowStyle()` | Style row house — idempotent |
+| `BasicListSpacer` | Transparent spacer that scrolls with content |
+| `BasicListScrollSentinel` | Sentinel that fires load-more for short lists |
+| `View.basicListRowStyle()` | Standard house row style — idempotent |
 
-Chi tiết cơ chế load-more (probe geometry + sentinel), rule bắt buộc và A11y — xem [`Sources/BasicList/README.md`](Sources/BasicList/README.md).
+Load-more mechanics (probe geometry + sentinel), mandatory rules and A11y — see
+[`Sources/BasicList/README.md`](Sources/BasicList/README.md). Measured baseline, known
+issues and the verification protocol — see
+[`Docs/LoadMoreVerification.md`](Docs/LoadMoreVerification.md).
 
 ## License
 
