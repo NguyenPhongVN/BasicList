@@ -10,7 +10,7 @@ import SwiftUI
 /// Header mode of `BasicListView`:
 /// - `.scrollsWithContent`: the header scrolls with the content (default).
 /// - `.pinnedTop`: pinned to the top — sticky like a UIKit supplementary view.
-public enum BasicListHeaderMode {
+public enum BasicListHeaderMode: Equatable, Sendable {
     case scrollsWithContent
     case pinnedTop
 }
@@ -34,6 +34,14 @@ public enum BasicListLoadMoreMode: Equatable, Sendable {
     /// margins shrink the real visible area, the region can be LARGER than N
     /// visible screens. Fixed absolute semantics → use `.pixelThreshold`.
     case pagesAhead(Int)
+
+    /// Single source of the library default — used by BOTH the engine's stored
+    /// property default and the `onLoadMore` modifier default so the two can
+    /// never diverge. Public: Swift evaluates default arguments in the
+    /// caller's module, so a public function's default may only reference
+    /// public symbols.
+    public static let pixelDefault =
+        BasicListLoadMoreMode.pixelThreshold(BasicListScrollSentinel.defaultBottomThreshold)
 }
 
 /// Per-list load-more gate — at most ONE fire per cooldown window across all
@@ -141,7 +149,7 @@ public struct BasicListSwipeAction {
 public extension View {
     func basicListRowStyle() -> some View {
         self
-            .listRowInsets(EdgeInsets.zero)
+            .listRowInsets(EdgeInsets())
             .basicListRowSeparatorHidden()
             .listRowBackground(Color.clear)
     }
@@ -158,12 +166,6 @@ private extension View {
         self.listRowSeparator(.hidden)
         #endif
     }
-}
-
-package extension EdgeInsets {
-    /// The counterpart of `EdgeInsets.zero` for a house list — used with
-    /// `basicListRowStyle()`.
-    static let zero = EdgeInsets()
 }
 
 /// Transparent row of `height` — inserted at the bottom of `BasicPlainList`
@@ -211,7 +213,11 @@ public struct BasicListScrollSentinel: View {
     /// Enter the trigger region when still this far from the bottom — the
     /// default threshold shared with the List-body probe
     /// (`BasicListBottomProbeModifier` in BasicListView.swift).
-    public static let defaultBottomThreshold: CGFloat = 600
+    ///
+    /// `nonisolated`: a plain numeric constant — the whole struct inherits
+    /// `@MainActor` from the `View` protocol, but this value must stay
+    /// readable from nonisolated contexts (default arguments, static init).
+    nonisolated public static let defaultBottomThreshold: CGFloat = 600
 
     package let onLoadMore: () async -> Void
     /// Shared per-list fire gate — nil when the sentinel is used standalone

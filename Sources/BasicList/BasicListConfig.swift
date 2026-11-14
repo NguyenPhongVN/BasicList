@@ -16,12 +16,12 @@ public struct BasicListConfig: Sendable, Equatable {
     /// Tint of the swipe action flagged `isDestructive: true` — the dedicated
     /// language for data-destroying actions; regular actions KEEP the system
     /// default tint (see `basicRowSwipeActions`).
-    package var destructiveActionTint: Color
+    package let destructiveActionTint: Color
 
     /// Bottom clearance of the list — `BasicPlainList` inserts a bottom spacer
     /// with this value so the last content isn't covered by a tab bar. A list
     /// in a context that doesn't cover the bottom → pass 0.
-    package var bottomClearance: CGFloat
+    package let bottomClearance: CGFloat
 
     public init(destructiveActionTint: Color, bottomClearance: CGFloat) {
         self.destructiveActionTint = destructiveActionTint

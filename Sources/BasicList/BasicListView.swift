@@ -73,8 +73,7 @@ public struct BasicListView<Item, Content: View>: View {
     #endif
     private var onRefreshHandler: (() async throws -> Void)?
     private var onLoadMoreHandler: (() async -> Void)?
-    private var loadMoreMode: BasicListLoadMoreMode =
-        .pixelThreshold(BasicListScrollSentinel.defaultBottomThreshold)
+    private var loadMoreMode: BasicListLoadMoreMode = .pixelDefault
     /// Shared fire gate across the probe and the sentinel — collapses the
     /// duplicate fires (transition + estimate steps + sentinel) into one per
     /// cooldown window. One per list identity.
@@ -281,7 +280,7 @@ public struct BasicListView<Item, Content: View>: View {
     ///   the distance exceeds the region or pages run out (VM `exhausted`).
     ///   `.pagesAhead(2)` ≈ "keep 2 pages ahead".
     public func onLoadMore(
-        mode: BasicListLoadMoreMode = .pixelThreshold(BasicListScrollSentinel.defaultBottomThreshold),
+        mode: BasicListLoadMoreMode = .pixelDefault,
         _ handler: @escaping () async -> Void
     ) -> Self {
         var copy = self
@@ -639,10 +638,18 @@ private let previewFixtures: [
     ("Dividend", "Quarterly payout", "chart.line.uptrend.xyaxis", 62.30, true),
 ]
 
+/// Fixture tuple (1-based index, wraps around) — negative or zero indices
+/// are normalized to 1 so a bad call can't crash on a negative array index.
+private func fixture(
+    at index: Int
+) -> (title: String, note: String, symbol: String, amount: Double, isIncome: Bool) {
+    previewFixtures[(max(index, 1) - 1) % previewFixtures.count]
+}
+
 /// Item from the fixture (1-based index, wraps around) — `note` overrides the
 /// fixture label when the caller needs its own (e.g. "Loaded round 2").
 private func fixtureItem(at index: Int, note: String? = nil) -> PreviewItem {
-    let fixture = previewFixtures[(index - 1) % previewFixtures.count]
+    let fixture = fixture(at: index)
     return PreviewItem(
         title: fixture.title, note: note ?? fixture.note,
         symbol: fixture.symbol, amount: fixture.amount,
@@ -652,7 +659,7 @@ private func fixtureItem(at index: Int, note: String? = nil) -> PreviewItem {
 /// Item from the fixture with a page label — the load-more rhythm shows up
 /// right in the data.
 private func pagedFixtureItem(at index: Int, page: Int) -> PreviewItem {
-    fixtureItem(at: index, note: "\(previewFixtures[(index - 1) % previewFixtures.count].note) · page \(page)")
+    fixtureItem(at: index, note: "\(fixture(at: index).note) · page \(page)")
 }
 
 /// "+$2,400.00" / "−$86.40" — income green, expense regular, digits uniform

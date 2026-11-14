@@ -137,9 +137,4 @@ struct VocabularyTests {
     func spacerKeepsHeight() {
         #expect(BasicListSpacer(height: 42).height == 42)
     }
-
-    @Test("EdgeInsets.zero shim equals an empty EdgeInsets — counterpart of basicListRowStyle()")
-    func edgeInsetsZeroShim() {
-        #expect(EdgeInsets.zero == EdgeInsets())
-    }
 }

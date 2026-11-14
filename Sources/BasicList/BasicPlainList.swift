@@ -34,7 +34,9 @@ public struct BasicPlainList<Content: View>: View {
     public var body: some View {
         List {
             content()
-            BasicListSpacer(height: config.bottomClearance)
+            if config.bottomClearance > 0 {
+                BasicListSpacer(height: config.bottomClearance)
+            }
         }
         .listStyle(.plain)
         .basicListBackgroundHidden()
