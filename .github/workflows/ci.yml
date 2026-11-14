@@ -29,10 +29,12 @@ jobs:
   # The load-more engine is only covered by the iOS simulator suite
   # (LoadMoreSimulatorTests compiles empty on a macOS host — see
   # Docs/LoadMoreVerification.md §6). It MUST run on every change to the
-  # probe/sentinel/gate; destination mirrors the documented local command —
-  # if a runner image lacks this simulator name, swap the destination here.
+  # probe/sentinel/gate. The destination is resolved at run time — runner
+  # images ship different simulator sets (macos-26 has no "iPhone 18 Pro
+  # Max"), and the harness builds its own fixed 390×844 window, so any
+  # iPhone model works geometry-wise.
   simulator-suite:
-    name: Load-more simulator suite (iPhone 18 Pro Max)
+    name: Load-more simulator suite
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
@@ -42,5 +44,17 @@ jobs:
         with:
           xcode-version: latest-stable
 
+      - name: Pick an available iPhone simulator
+        id: sim
+        run: |
+          PREFERRED="iPhone 18 Pro Max"
+          if xcrun simctl list devices available | grep -q "$PREFERRED ("; then
+            NAME="$PREFERRED"
+          else
+            NAME=$(xcrun simctl list devices available | awk -F ' \\(' '/iPhone/{sub(/^ +/, "", $1); print $1; exit}')
+          fi
+          echo "Picked simulator: $NAME"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+
       - name: Test
-        run: xcodebuild test -scheme BasicList -destination 'platform=iOS Simulator,name=iPhone 18 Pro Max' -only-testing:BasicListTests/LoadMoreSimulatorTests
+        run: xcodebuild test -scheme BasicList -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" -only-testing:BasicListTests/LoadMoreSimulatorTests
