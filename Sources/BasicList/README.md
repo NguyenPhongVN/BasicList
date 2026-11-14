@@ -172,11 +172,17 @@ tables in the verification doc.
 
 ## 8. Preview
 
-6 live demo shapes in `BasicListView.swift` — each with its own look (row = colored
-glyph + money, not a bare `Text`): flat (swipe/tap/load-more/empty-state), sectioned
-sticky headers, few rows, 4-page pagination + refresh on top of load-more, slow refresh
-spinner, refresh error handled inside the handler. Neutral config — the real design
-values exist only in the app (`BasicListConfig.house`).
+13 live demo shapes in `Sources/BasicList/BasicListPreviews.swift` — a catalog
+covering EVERY public API (one preview per capability, coverage matrix at the top
+of the file): the three data-in shapes (flat / non-Identifiable / sectioned),
+both header modes, empty state (at launch + after removing rows), footer, swipe
+on both edges, context menu, row tap, reorder + editMode (iOS), pull-to-refresh
+(slow / error-in-handler), all three load-more modes (`.pixelDefault`,
+`.pixelThreshold(150)`, `.pagesAhead(2)`), `BasicPlainList`, and the
+self-built-list vocabulary (`BasicListScrollSentinel` + `BasicListSpacer` +
+`.basicListRowStyle()`). Each row has its own look (colored glyph + money, not a
+bare `Text`). Neutral config — the real design values exist only in the app
+(`BasicListConfig.house`).
 
 ## 9. Module notes
 
