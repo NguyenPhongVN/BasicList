@@ -33,5 +33,12 @@ let package = Package(
             ],
         ),
 
+        .testTarget(
+            name: "BasicListTests",
+            dependencies: [
+                "BasicList",
+            ],
+        ),
+
     ]
 )
