@@ -2,11 +2,12 @@ import SwiftUI
 import Testing
 @testable import BasicList
 
-// MARK: - Smoke test engine BasicListView
+// MARK: - BasicListView engine smoke tests
 //
-// Host test không render được List — scope của suite này: mọi init +
-// modifier TỔ HỢP được với nhau, chain trả Self không phá generic, body
-// dựng được (đánh giá cây view, không render). Hành vi render thuộc preview.
+// Host tests can't render a List — this suite's scope: every init +
+// modifier COMBINES with all the others, chaining returns Self without
+// breaking generics, and the body builds (the view tree is evaluated, not
+// rendered). Render behavior belongs to the previews.
 
 @MainActor
 struct BasicListViewTests {
@@ -14,7 +15,7 @@ struct BasicListViewTests {
     private struct Item: Identifiable { let id: Int }
     private let config = BasicListConfig(destructiveActionTint: .red, bottomClearance: 0)
 
-    @Test("Flat init (Item Identifiable) + chain đầy đủ modifier — vẫn Self")
+    @Test("Flat init (Identifiable item) + full modifier chain — still Self")
     func flatChainAllModifiers() {
         let view = BasicListView(items: [Item(id: 1), Item(id: 2)], config: config) {
             Text("\($0.id)")
@@ -39,7 +40,7 @@ struct BasicListViewTests {
         _ = view.body
     }
 
-    @Test("Flat init với id closure — item chưa Identifiable")
+    @Test("Flat init with id closure — item not Identifiable")
     func flatInitWithIDClosure() {
         let view = BasicListView(items: ["alpha", "beta"], id: { $0 }, config: config) {
             Text($0)
@@ -49,7 +50,7 @@ struct BasicListViewTests {
         _ = view.body
     }
 
-    @Test("Sectioned init — nhóm có footer lẫn không footer cùng dựng được")
+    @Test("Sectioned init — groups with and without footers both build")
     func sectionedInitMixedFooters() {
         let sections: [BasicListSection<Item>] = [
             BasicListSection(section: "Today", items: [Item(id: 1)], itemID: { AnyHashable($0.id) }) {
@@ -70,7 +71,7 @@ struct BasicListViewTests {
         _ = view.body
     }
 
-    @Test("Sectioned init nhận AnyHashable nào — section là Int cũng chạy")
+    @Test("Sectioned init accepts any AnyHashable — an Int section works too")
     func sectionedInitWithIntSection() {
         let sections = [
             BasicListSection(section: 2026, items: [Item(id: 1)], itemID: { AnyHashable($0.id) }) {

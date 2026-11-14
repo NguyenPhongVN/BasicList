@@ -1,22 +1,23 @@
 import SwiftUI
 
-/// List `.plain` trần đúng chuẩn house — nền của mọi list trong app.
+/// The bare `.plain` house list — the base of every list in the app.
 ///
-/// Ba cài đặt định danh chữ "trần": nền trong suốt (screen tự đổ nền qua
-/// `basicBackground`, list không tự có màu), content margins 0 (nội
-/// dung chạm mép, cell tự vẽ padding/card của nó), row height tối thiểu
-/// 0 (row cao bao nhiêu do nội dung, không bị padding hệ thống nâng).
+/// Three settings define the word "bare": transparent background (the screen
+/// pours its own background via `basicBackground`, the list brings no color
+/// of its own), content margins 0 (content touches the edges, cells draw
+/// their own padding/card), minimum row height 0 (a row is as tall as its
+/// content says, never lifted by system padding).
 ///
-/// Chọn view nào:
-/// - Screen TỰ dựng sections/rows phức tạp riêng (sections tuỳ ý, content
-///   xen kẽ giữa các khối) → dùng trực tiếp view này.
-/// - "Array vào — item ra" với header/empty-state/swipe/tap/refresh/
-///   load-more có sẵn → dùng `BasicListView` (dựng TRÊN nền này — mọi
-///   list của app cùng một ngôn ngữ render).
+/// Which view to pick:
+/// - The screen builds its own complex sections/rows (custom sections,
+///   interleaved content) → use this view directly.
+/// - "Array in — item out" with built-in header/empty-state/swipe/tap/
+///   refresh/load-more → use `BasicListView` (built ON TOP of this — every
+///   list in the app shares one render language).
 ///
-/// Khoảng trống đáy list (clearing cho tab bar) lấy từ
-/// `config.bottomClearance` — caller truyền giá trị chuẩn của app
-/// (`BasicListConfig.house`); context khác không che đáy thì truyền 0.
+/// The bottom clearance of the list (clearing the tab bar) comes from
+/// `config.bottomClearance` — the caller passes the app's standard value
+/// (`BasicListConfig.house`); contexts that don't cover the bottom pass 0.
 public struct BasicPlainList<Content: View>: View {
 
     package let config: BasicListConfig

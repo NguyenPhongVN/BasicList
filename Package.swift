@@ -25,7 +25,7 @@ let package = Package(
         .target(
             name: "BasicList",
             exclude: [
-                // Doc module — không phải resource cần bundle.
+                // Doc module — not a resource to bundle.
                 "README.md",
             ],
             swiftSettings: [

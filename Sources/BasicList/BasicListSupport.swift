@@ -1,32 +1,33 @@
 import SwiftUI
 
-// MARK: - Vocabulary dùng chung của BasicList
+// MARK: - BasicList shared vocabulary
 //
-// Các type nhỏ đi kèm engine: mode header, section, swipe action, spacer,
-// sentinel, row style. Ba nhóm người dùng chung một ngôn ngữ render:
-// engine (`BasicListView`), list trần (`BasicPlainList`), và screen
-// tự dựng List riêng (sentinel/spacer/row-style vẫn áp dụng được).
+// Small types that come with the engine: header mode, section, swipe action,
+// spacer, sentinel, row style. Three groups share one render language:
+// the engine (`BasicListView`), the bare list (`BasicPlainList`), and
+// screens that build their own List (sentinel/spacer/row-style still apply).
 
-/// Mode header của `BasicListView`:
-/// - `.scrollsWithContent`: header lướt cùng nội dung (mặc định).
-/// - `.pinnedTop`: ghim đỉnh — sticky như supplementary view của UIKit.
+/// Header mode of `BasicListView`:
+/// - `.scrollsWithContent`: the header scrolls with the content (default).
+/// - `.pinnedTop`: pinned to the top — sticky like a UIKit supplementary view.
 public enum BasicListHeaderMode {
     case scrollsWithContent
     case pinnedTop
 }
 
-/// Một nhóm có sticky header riêng — hình điển hình: một ngày + các
-/// giao dịch trong ngày đó.
+/// One group with its own sticky header — the typical shape: one day + the
+/// transactions of that day.
 ///
-/// Header lưu CLOSURE thay vì view đã dựng: mảng sections thường là
-/// computed property của screen (chạy lại mỗi lần body re-eval) — build
-/// sẵn `AnyView` ở đây là dựng header cho những lượt render bị vứt;
-/// closure chỉ tiêu hao khi list thật sự render group đó.
+/// The header stores a CLOSURE instead of an already-built view: the sections
+/// array is usually a computed property of the screen (re-evaluated on every
+/// body pass) — pre-building `AnyView` here would build headers for renders
+/// that get thrown away; the closure only pays its cost when the list
+/// actually renders that group.
 public struct BasicListSection<Item> {
     package let section: AnyHashable
     package let header: () -> AnyView
-    /// Footer nhóm — nil khi không khai báo: List không render footer
-    /// row nào cho nhóm đó.
+    /// Group footer — nil when not declared: the List renders no footer
+    /// row for that group.
     package let footer: (() -> AnyView)?
     package let items: [Item]
     package let itemID: (Item) -> AnyHashable
@@ -44,8 +45,8 @@ public struct BasicListSection<Item> {
         self.footer = nil
     }
 
-    /// Footer nhóm — đối xứng với header: render sau các item của nhóm,
-    /// cuộn cùng nội dung.
+    /// Group footer — symmetric with the header: rendered after the items of
+    /// the group, scrolling with the content.
     public init(
         section: any Hashable,
         items: [Item],
@@ -61,10 +62,11 @@ public struct BasicListSection<Item> {
     }
 }
 
-/// Một swipe action trả về từ handler `.rowSwipeActions` — data in,
-/// events out: caller mô tả nút (title/glyph/cờ destructive), engine vẽ
-/// và hồi báo handler khi user bấm. Tint của nút destructive KHÔNG nằm
-/// ở đây — lấy từ `BasicListConfig.destructiveActionTint` của list.
+/// One swipe action returned by the `.rowSwipeActions` handler — data in,
+/// events out: the caller describes the button (title/glyph/destructive flag),
+/// the engine draws it and reports back when the user taps. The tint of a
+/// destructive button does NOT live here — it comes from the list's
+/// `BasicListConfig.destructiveActionTint`.
 public struct BasicListSwipeAction {
     package let title: String
     package let systemImage: String
@@ -84,9 +86,10 @@ public struct BasicListSwipeAction {
     }
 }
 
-/// Style chuẩn của MỘT row trong list house: không inset, không
-/// separator, nền trong suốt — cell tự vẽ nền/card của nó. Idempotent:
-/// engine nội bộ cũng áp trên row đã style, gọi lại không đổi gì.
+/// Standard style of ONE row in a house list: no inset, no separator,
+/// transparent background — the cell draws its own background/card. Idempotent:
+/// the engine already applies it to styled rows internally; calling it again
+/// changes nothing.
 public extension View {
     func basicListRowStyle() -> some View {
         self
@@ -97,14 +100,14 @@ public extension View {
 }
 
 package extension EdgeInsets {
-    /// Đối trọng `EdgeInsets.zero` cho list house — dùng cùng
+    /// The counterpart of `EdgeInsets.zero` for a house list — used with
     /// `basicListRowStyle()`.
     static let zero = EdgeInsets()
 }
 
-/// Row trong suốt cao `height` — chèn đáy `BasicPlainList` (clearing
-/// tab bar) hoặc bất kỳ khoảng đệm cuộn-cùng-nội dung nào cần nằm trong
-/// list.
+/// Transparent row of `height` — inserted at the bottom of `BasicPlainList`
+/// (clearing the tab bar) or anywhere else scroll-with-content padding is
+/// needed inside a list.
 public struct BasicListSpacer: View {
     package let height: CGFloat
 
@@ -116,30 +119,37 @@ public struct BasicListSpacer: View {
         Color.clear
             .frame(height: height)
             .basicListRowStyle()
-            // Spacer thuần cơ học — không phải điểm dừng VoiceOver.
+            // Purely mechanical spacer — not a VoiceOver stop.
             .accessibilityHidden(true)
     }
 }
 
-/// Sentinel đáy: row trong suốt 1pt mang `onAppear` — fire load-more
-/// khi materialize. Dùng nội bộ của `BasicListView` và như row cuối
-/// của screen dựng List riêng.
+/// Bottom sentinel: a transparent 1pt row carrying `onAppear` — fires
+/// load-more when it materializes. Used by `BasicListView` internally and as
+/// the last row of screens that build their own List.
 ///
-/// Vai trò: BÙ FIRE LÚC GẮN cho list ngắn. Load-more chính chạy bằng
-/// probe geometry trên thân List (`.basicListBottomProbe`, private của
-/// engine) — observer sống trọn vòng đời list, fire theo chuyển trạng
-/// thái vào vùng đáy. Nhưng trang đầu chưa đủ đầy màn thì không có phép
-/// đổi geometry nào sau lúc probe gắn (khoảng cách đáy âm — đã trong
-/// vùng — nhưng không bao giờ "đi vào" vùng nữa): sentinel nằm cuối list
-/// ngắn materialize NGAY, `onAppear` kêu về VM nạp tiếp cho tới khi list
-/// vượt vùng. Với list dài, List lazy chỉ materialize sentinel khi user
-/// đã cuộn vào vùng đáy — đúng điều kiện. Lượt fire trùng (probe +
-/// sentinel cùng nổ) chặn phía VM (`Paging.inFlight` / `exhausted`) —
-/// sentinel không giữ state nào.
+/// ⚠️ Measured reality (2026-11-14, see `Docs/LoadMoreVerification.md`): the
+/// probe ALSO fires at attach for in-region lists (the zero→settled
+/// transition is an observed geometry change), so short lists currently
+/// double-fire at attach — known issue F3, fix plan in the same doc.
+///
+/// Role: backstops the attach-time fire for short lists. The primary load-more
+/// runs through the geometry probe on the List body (`.basicListBottomProbe`,
+/// private to the engine) — the observer lives for the whole list lifetime and
+/// fires on state transitions into the bottom region. But when the first page
+/// doesn't fill a screen yet, no geometry change can happen after the probe
+/// attaches (the distance is already inside the region and never "enters" it
+/// again): the sentinel at the end of a short list materializes RIGHT AWAY and
+/// its `onAppear` calls back to the VM until the list grows past the region.
+/// For long lists, a lazy List only materializes the sentinel when the user
+/// has scrolled into the bottom region — the right condition anyway. Duplicate
+/// fires (probe + sentinel going off together) are blocked on the VM side
+/// (`Paging.inFlight` / `exhausted`) — the sentinel keeps no state.
 public struct BasicListScrollSentinel: View {
 
-    /// Vào vùng trigger khi còn cách đáy dưới ngưỡng này — ngưỡng mặc
-    /// định dùng chung cho probe thân List (`.basicListBottomProbe`).
+    /// Enter the trigger region when still this far from the bottom — the
+    /// default threshold shared with the List-body probe
+    /// (`.basicListBottomProbe`).
     public static let defaultBottomThreshold: CGFloat = 600
 
     package let onLoadMore: () async -> Void
@@ -152,7 +162,7 @@ public struct BasicListScrollSentinel: View {
         Color.clear
             .frame(height: 1)
             .basicListRowStyle()
-            // Row ảo 1pt — ẩn khỏi VoiceOver (không phải nội dung).
+            // 1pt virtual row — hidden from VoiceOver (not content).
             .accessibilityHidden(true)
             .onAppear {
                 Task { await onLoadMore() }

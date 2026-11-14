@@ -1,26 +1,27 @@
 import SwiftUI
 
-// MARK: - BasicListView — engine "array vào — item ra"
+// MARK: - BasicListView — the "array in — item out" engine
 //
-// Một view cho cả hai hình: flat (`items:`) và sectioned với sticky
-// header từng nhóm (`sections:`). Kèm header 2 mode, empty-state, footer,
-// swipe actions, row tap, refresh, load-more liên tục, reorder flat list
-// (onMove + editMode). Nền là `BasicPlainList` — list .plain trần house.
+// One view for both shapes: flat (`items:`) and sectioned with a sticky
+// header per group (`sections:`). Includes the 2-mode header, empty-state,
+// footer, swipe actions, row tap, refresh, continuous load-more, flat-list
+// reorder (onMove + editMode). The base is `BasicPlainList` — a bare .plain
+// house list.
 //
-// MÀU/THÔNG SỐ: truyền vào qua `BasicListConfig` — engine thuần
-// SwiftUI, không đọc design layer. Cách chọn view, config, cơ chế
-// load-more và rule bắt buộc — xem README.md của module.
+// COLORS/METRICS: passed in via `BasicListConfig` — the engine stays pure
+// SwiftUI and reads no design layer. Which view to pick, the config, the
+// load-more mechanics and the mandatory rules — see the module README.md.
 
-/// Base "array vào — item ra" cho house list.
+/// Base "array in — item out" for house lists.
 ///
-/// Ba nguyên tắc của engine:
-/// - **Data in, events out** — swipe/tap/move/refresh/load-more đều là
-///   closure caller truyền vào; engine không giữ state nghiệp vụ nào,
-///   nguồn dữ liệu duy nhất là mảng/sections đưa vào.
-/// - **Immutable, modifier trả `Self`** — chain thoải mái, không có
-///   state ẩn đổi theo thứ tự gọi modifier.
-/// - **Design đi qua config** — không màu/thông số hardcode trong module;
-///   thiếu config là lỗi compile.
+/// The engine's three principles:
+/// - **Data in, events out** — swipe/tap/move/refresh/load-more are all
+///   closures passed in by the caller; the engine keeps no business state,
+///   the single data source is the array/sections passed in.
+/// - **Immutable, modifiers return `Self`** — chain freely, no hidden state
+///   that changes with modifier call order.
+/// - **Design goes through config** — no hardcoded color/metric inside the
+///   module; missing config is a compile error.
 ///
 /// ```swift
 /// BasicListView(items: accounts, config: .house) { account in
@@ -42,7 +43,7 @@ public struct BasicListView<Item, Content: View>: View {
         let id: AnyHashable
     }
 
-    /// Section nội bộ: flat là một nhóm duy nhất với header rỗng.
+    /// Internal section: flat is a single group with an empty header.
     private struct Group: Identifiable {
         let section: AnyHashable
         let header: () -> AnyView
@@ -55,8 +56,8 @@ public struct BasicListView<Item, Content: View>: View {
     private let groups: [Group]
     private let rows: [Row]
     private let content: (Item) -> Content
-    /// Màu/thông số truyền vào từ caller (xem `BasicListConfig`) — engine
-    /// không tự đọc giá trị design.
+    /// Colors/metrics passed in by the caller (see `BasicListConfig`) — the
+    /// engine never reads design values by itself.
     private let config: BasicListConfig
     private var headerBuilder: (() -> AnyView)?
     private var headerMode: BasicListHeaderMode = .scrollsWithContent
@@ -75,7 +76,7 @@ public struct BasicListView<Item, Content: View>: View {
     private var bottomThreshold = BasicListScrollSentinel.defaultBottomThreshold
     private var pagesAhead = 0
 
-    /// Item tự `Identifiable`.
+    /// Items that are already `Identifiable`.
     public init(
         items: [Item],
         config: BasicListConfig,
@@ -88,7 +89,8 @@ public struct BasicListView<Item, Content: View>: View {
         self.config = config
     }
 
-    /// Item chưa `Identifiable` — dán id qua closure, như `ForEach(id:)`.
+    /// Items that are not `Identifiable` — attach an id via closure, like
+    /// `ForEach(id:)`.
     public init(
         items: [Item],
         id: @escaping (Item) -> any Hashable,
@@ -102,8 +104,8 @@ public struct BasicListView<Item, Content: View>: View {
         self.config = config
     }
 
-    /// Danh sách section, mỗi nhóm một sticky header (`section.header`)
-    /// và footer tuỳ chọn (`section.footer`).
+    /// A list of sections, each group with a sticky header (`section.header`)
+    /// and an optional footer (`section.footer`).
     public init(
         sections: [BasicListSection<Item>],
         config: BasicListConfig,
@@ -122,15 +124,16 @@ public struct BasicListView<Item, Content: View>: View {
         self.config = config
     }
 
-    // MARK: Modifiers (builder-style, trả Self để chain)
+    // MARK: Modifiers (builder-style, return Self to chain)
 
-    /// Header đầu list, hai mode:
-    /// - `.scrollsWithContent` — lướt cùng nội dung (mặc định).
-    /// - `.pinnedTop` — ghim đỉnh, sticky như supplementary view UIKit.
+    /// Header at the top of the list, two modes:
+    /// - `.scrollsWithContent` — scrolls with the content (default).
+    /// - `.pinnedTop` — pinned to the top, sticky like a UIKit supplementary
+    ///   view.
     ///
-    /// ⚠️ `.pinnedTop` + sectioned CHƯA KIỂM CHỨNG: header pinned là
-    /// Section bao quanh các Section của groups — kết hợp này chưa có
-    /// caller nào dùng, tránh cho tới khi cần và đã test.
+    /// ⚠️ `.pinnedTop` + sectioned is UNVERIFIED: the pinned header is a
+    /// Section wrapping the groups' Sections — this combination has no caller
+    /// yet; avoid it until it's needed and tested.
     public func basicListHeader(
         mode: BasicListHeaderMode = .scrollsWithContent,
         @ViewBuilder _ builder: @escaping () -> some View
@@ -141,29 +144,31 @@ public struct BasicListView<Item, Content: View>: View {
         return copy
     }
 
-    /// Nội dung thay thế rows khi list rỗng — hero rỗng chạy TRONG list
-    /// (cuộn cùng, list giữ identity giữa hai pha rỗng/có dữ liệu) thay
-    /// vì nhánh `if` bên ngoài làm list xuất hiện/biến mất.
+    /// Replacement content for the rows when the list is empty — an empty
+    /// hero that runs INSIDE the list (scrolls with it, keeps the list
+    /// identity across the empty/loaded phases) instead of an outer `if`
+    /// branch making the list appear/disappear.
     public func basicListEmptyState(@ViewBuilder _ builder: @escaping () -> some View) -> Self {
         var copy = self
         copy.emptyStateBuilder = { AnyView(builder()) }
         return copy
     }
 
-    /// Nội dung đáy list — sau toàn bộ rows (hoặc empty-state), trước
-    /// sentinel load-more; suggestion Categories chạy đây để cuộn cùng
-    /// nội dung như một section thật của list.
+    /// Bottom content — after all rows (or the empty-state), before the
+    /// load-more sentinel; suggestion categories live here so they scroll
+    /// with the content like a real section of the list.
     public func basicListFooter(@ViewBuilder _ builder: @escaping () -> some View) -> Self {
         var copy = self
         copy.footerBuilder = { AnyView(builder()) }
         return copy
     }
 
-    /// Swipe actions trên từng dòng — data in, events out: handler trả
-    /// danh sách action của mỗi item, list vẽ nút và hồi báo handler.
-    /// `edge` mặc định `.trailing`; gọi thêm một lần với `.leading` để
-    /// có swipe từ mép trái — hai edge dùng chung được, full swipe hoạt
-    /// động như nhau (handler là hand-off confirm, không xoá row).
+    /// Swipe actions per row — data in, events out: the handler returns the
+    /// action list per item, the list draws the buttons and reports back.
+    /// `edge` defaults to `.trailing`; call again with `.leading` to get
+    /// swipe from the left edge — both edges can coexist, full swipe works
+    /// the same (the handler is a confirm hand-off, it never deletes the row
+    /// itself).
     public func rowSwipeActions(
         edge: HorizontalEdge = .trailing,
         _ handler: @escaping (Item) -> [BasicListSwipeAction]
@@ -177,9 +182,9 @@ public struct BasicListView<Item, Content: View>: View {
         return copy
     }
 
-    /// Context menu tap-giữ trên từng dòng — data in, events out: menu
-    /// dựng theo item, không chiếm tap thường lẫn cử chỉ swipe của row.
-    /// VoiceOver: SwiftUI contextMenu tự expose qua rotor actions.
+    /// Long-press context menu per row — data in, events out: the menu is
+    /// built per item, doesn't steal regular taps or the row's swipe gesture.
+    /// VoiceOver: the SwiftUI contextMenu is exposed via rotor actions.
     public func rowContextMenu(
         @ViewBuilder _ handler: @escaping (Item) -> some View
     ) -> Self {
@@ -188,22 +193,22 @@ public struct BasicListView<Item, Content: View>: View {
         return copy
     }
 
-    /// Tap vào dòng — data in, events out như swipe actions: truyền
-    /// handler thì row nhận tap toàn vùng (contentShape) và hồi báo
-    /// item; không truyền thì row nguyên trạng. Tap không chiếm cử chỉ
-    /// kéo ngang của swipe actions nên hai modifier dùng chung được.
+    /// Tap on a row — data in, events out like swipe actions: passing a
+    /// handler gives the row a full-area tap (contentShape) that reports the
+    /// item; passing none leaves the row untouched. The tap doesn't steal the
+    /// horizontal drag of swipe actions so both modifiers can coexist.
     public func onRowTap(_ handler: @escaping (Item) -> Void) -> Self {
         var copy = self
         copy.rowTapHandler = handler
         return copy
     }
 
-    /// Kéo-thả sắp xếp lại các dòng (flat list) — data in, events out:
-    /// screen truyền handler, List hồi báo source/destination khi user
-    /// kéo handle. Handle chỉ xuất hiện khi `editMode` đang `.active`
-    /// (screen điều khiển qua `basicEditMode`); không truyền handler
-    /// thì list nguyên trạng. Chỉ áp cho hình flat — sectioned chưa hỗ
-    /// trợ reorder.
+    /// Drag-to-reorder rows (flat list) — data in, events out: the screen
+    /// passes a handler, the List reports source/destination when the user
+    /// drags the handle. The handle only appears when `editMode` is
+    /// `.active` (the screen controls it via `basicEditMode`); without a
+    /// handler the list is untouched. Applies to the flat shape only —
+    /// sectioned lists don't support reorder yet.
     public func onMoveRows(_ handler: @escaping (IndexSet, Int) -> Void) -> Self {
         var copy = self
         copy.onMoveHandler = handler
@@ -211,10 +216,10 @@ public struct BasicListView<Item, Content: View>: View {
     }
 
     #if os(iOS)
-    /// Ghim `editMode` của List theo binding của screen — `.active` hiện
-    /// drag handle của `onMoveRows`, `.inactive` trả list về tương tác
-    /// thường. Không truyền (mặc định) là list nguyên trạng. iOS-only:
-    /// `EditMode` unavailable trên macOS.
+    /// Pins the List's `editMode` to the screen's binding — `.active` shows
+    /// the drag handle of `onMoveRows`, `.inactive` returns the list to
+    /// regular interaction. Without one (default) the list keeps its
+    /// environment state. iOS-only: `EditMode` is unavailable on macOS.
     public func basicEditMode(_ binding: Binding<EditMode>?) -> Self {
         var copy = self
         copy.editModeBinding = binding
@@ -222,30 +227,29 @@ public struct BasicListView<Item, Content: View>: View {
     }
     #endif
 
-    /// Pull-to-refresh. Lỗi của handler KHÔNG ném lên SwiftUI — closure
-    /// được gọi trong `refreshable` và spinner tự kết thúc bất kể kết quả
-    /// (`try?` nuốt error): muốn trình bày lỗi thì tự xử lý ngay trong
-    /// handler (alert/state của screen gọi).
+    /// Pull-to-refresh. Handler errors are NOT thrown up into SwiftUI — the
+    /// closure runs inside `refreshable` and the spinner ends regardless of
+    /// the result (`try?` swallows the error): to present an error, handle it
+    /// inside the handler (alert/state owned by the screen).
     public func onRefresh(_ handler: @escaping () async throws -> Void) -> Self {
         var copy = self
         copy.onRefreshHandler = handler
         return copy
     }
 
-    /// Load-more liên tục — cơ chế xem doc `.basicListBottomProbe` +
-    /// `BasicListScrollSentinel` (probe trên thân List, sentinel bù fire
-    /// list ngắn, chặn lặp nằm phía VM). Handler là closure CUỐI để gọi
-    /// trailing thoải mái: `.onLoadMore { ... }`.
+    /// Continuous load-more — mechanics documented in `.basicListBottomProbe`
+    /// + `BasicListScrollSentinel` (probe on the List body, sentinel backstops
+    /// short lists, loop prevention lives on the VM side). The handler is the
+    /// LAST closure so trailing syntax works freely: `.onLoadMore { ... }`.
     ///
-    /// Prefetch kiểu ASDK/IGListKit — `pagesAhead`: nạp TRƯỚC khi user
-    /// tới đáy. Vùng đáy = `pagesAhead × chiều cao viewport` (đơn vị
-    /// màn hình, không đo chiều cao từng trang — engine không biết page
-    /// size theo data in/events out): trong vùng, probe nạp LIÊN TỤC
-    /// theo từng trang đính vào cho tới khi cách đáy hơn vùng hoặc hết
-    /// trang (VM `exhausted`). `pagesAhead: 2` ≈ "giữ sẵn 2 trang phía
-    /// trước". `pagesAhead > 0` đè `pixelThreshold`; muốn ngưỡng pixel
-    /// tĩnh thì để `pagesAhead: 0` và dùng `pixelThreshold` (mặc định
-    /// 600pt).
+    /// ASDK/IGListKit-style prefetch — `pagesAhead`: loads BEFORE the user
+    /// reaches the bottom. Bottom region = `pagesAhead × viewport height`
+    /// (in screens, not per-page heights — the engine can't know the page
+    /// size, data in / events out): inside the region the probe loads
+    /// CONTINUOUSLY as pages attach until the distance exceeds the region or
+    /// pages run out (VM `exhausted`). `pagesAhead: 2` ≈ "keep 2 pages ahead".
+    /// `pagesAhead > 0` overrides `pixelThreshold`; for a static pixel
+    /// threshold use `pagesAhead: 0` + `pixelThreshold` (default 600pt).
     public func onLoadMore(
         pagesAhead: Int = 0,
         pixelThreshold: CGFloat = BasicListScrollSentinel.defaultBottomThreshold,
@@ -293,9 +297,10 @@ public struct BasicListView<Item, Content: View>: View {
 
     @ViewBuilder
     private var rowsList: some View {
-        // Độ "rỗng" phải tính theo ĐÚNG hình đang dùng: list sectioned
-        // giữ data trong `groups` (`rows` luôn rỗng) — kiểm `rows.isEmpty`
-        // với sectioned có data sẽ nhầm là rỗng và hiện empty state.
+        // Emptiness must be computed for the EXACT shape in use: a sectioned
+        // list keeps its data in `groups` (`rows` is always empty) — checking
+        // `rows.isEmpty` on a sectioned list with data would wrongly show the
+        // empty state.
         if isEmpty, let emptyStateBuilder {
             emptyStateBuilder().basicListRowStyle()
         } else if isSectioned {
@@ -305,15 +310,15 @@ public struct BasicListView<Item, Content: View>: View {
                 } header: {
                     group.header().basicListRowStyle()
                 } footer: {
-                    // Nhóm không khai báo footer → EmptyView: List không
-                    // render footer row nào cho nhóm đó.
+                    // A group without a declared footer → EmptyView: the List
+                    // renders no footer row for that group.
                     (group.footer?() ?? AnyView(EmptyView())).basicListRowStyle()
                 }
             }
         } else if let onMoveHandler {
-            // Flat + reorder: `.onMove` trên chính ForEach dữ liệu —
-            // drag handle xuất hiện khi `editMode` `.active`, move hồi
-            // báo handler (store tự lo local move + persist).
+            // Flat + reorder: `.onMove` on the data ForEach itself — the drag
+            // handle appears when `editMode` is `.active`, a move reports back
+            // to the handler (the store handles local move + persistence).
             ForEach(rows) { rowView(_: $0) }
                 .onMove(perform: onMoveHandler)
         } else {
@@ -321,7 +326,7 @@ public struct BasicListView<Item, Content: View>: View {
         }
     }
 
-    /// List không còn item nào để hiển thị — theo hình đang dùng.
+    /// Whether the list has no items to show — per the shape in use.
     private var isEmpty: Bool {
         isSectioned ? groups.allSatisfy(\.rows.isEmpty) : rows.isEmpty
     }
@@ -330,19 +335,19 @@ public struct BasicListView<Item, Content: View>: View {
         contextLayer(row.item, tapLayer(row, baseRow(row)))
     }
 
-    /// Layer tap: có handler thì row nhận tap toàn vùng + VoiceOver
-    /// "nút"; không handler thì giữ nguyên trạng thái row.
+    /// Tap layer: with a handler the row gets a full-area tap + the VoiceOver
+    /// "button" trait; without one the row stays untouched.
     @ViewBuilder
     private func tapLayer(_ row: Row, _ view: some View) -> some View {
         if let rowTapHandler {
             view
-                // Hit area toàn chiều rộng row — cell chỉ phủ phần nội
-                // dung, tap vào vùng đệm cũng phải tính.
+                // Hit area across the full row width — the cell only covers
+                // its content; taps on the padding must count too.
                 .contentShape(Rectangle())
                 .onTapGesture { rowTapHandler(row.item) }
-                // VoiceOver: row có hành động kích hoạt → phải là "nút"
-                // và kích hoạt được bằng action mặc định (rotor/tap đôi),
-                // không chỉ cử chỉ tap thường.
+                // VoiceOver: a row with an activating action must be a
+                // "button" and activatable via the default action
+                // (rotor/double-tap), not just the raw tap gesture.
                 .accessibilityAddTraits(.isButton)
                 .accessibilityAction { rowTapHandler(row.item) }
         } else {
@@ -350,8 +355,8 @@ public struct BasicListView<Item, Content: View>: View {
         }
     }
 
-    /// Layer context menu: menu dựng theo item, tap-giữ — không chiếm
-    /// tap thường lẫn cử chỉ swipe của row.
+    /// Context menu layer: the menu is built per item, long-press — doesn't
+    /// steal regular taps or the row's swipe gesture.
     @ViewBuilder
     private func contextLayer(_ item: Item, _ view: some View) -> some View {
         if let rowContextMenuHandler {
@@ -375,11 +380,12 @@ public struct BasicListView<Item, Content: View>: View {
     }
 }
 
-// MARK: - Private internals (chỉ engine dùng — private extension cùng file)
+// MARK: - Private internals (engine only — private extension, same file)
 
 private extension View {
-    /// Refresh chỉ khi có handler — không thì giữ list nguyên trạng; lỗi
-    /// nuộc trong chính refreshable (pull spinner tự kết thúc).
+    /// Refresh only when a handler exists — otherwise leave the list
+    /// untouched; errors are swallowed inside refreshable itself (the pull
+    /// spinner ends on its own).
     @ViewBuilder
     func basicListRefreshable(_ handler: (() async throws -> Void)?) -> some View {
         if let handler {
@@ -390,8 +396,8 @@ private extension View {
     }
 
     #if os(iOS)
-    /// Ghim `editMode` của List chỉ khi có binding — list không reorder
-    /// giữ nguyên trạng thái environment.
+    /// Pins the List's `editMode` only when a binding exists — a list without
+    /// reorder keeps its environment state.
     @ViewBuilder
     func basicListEditMode(_ binding: Binding<EditMode>?) -> some View {
         if let binding {
@@ -402,15 +408,18 @@ private extension View {
     }
     #endif
 
-    /// Nếu handler trả actions, gắn swipe tại row; không thì giữ row nguyên.
-    /// `allowsFullSwipe: true` — full swipe nổ handler ngay, nhưng handler chỉ
-    /// là hand-off confirm-riêng (popup). KHÔNG dùng `role: .destructive`:
-    /// destructive-role + full swipe kích hoạt animation trượt row đi (SwiftUI
-    /// coi row đã bị xoá) — không render lại thì row mất luôn dù data nguyên.
-    /// Look đỏ giữ bằng `.tint` trên Button — màu từ `BasicListConfig`
-    /// truyền xuống (`destructiveTint`), engine không tự đọc token design.
-    /// Mỗi action còn expose `.accessibilityAction(named:)`: cử chỉ swipe
-    /// không tồn tại với VoiceOver, actions phải kích hoạt được từ rotor.
+    /// If the handler returns actions, attach them to the row; otherwise keep
+    /// the row untouched. `allowsFullSwipe: true` — full swipe fires the
+    /// handler immediately, but the handler is only a confirm hand-off
+    /// (popup). Do NOT use `role: .destructive`:
+    /// destructive-role + full swipe triggers the row slide-away animation
+    /// (SwiftUI considers the row deleted) — if nothing re-renders, the row
+    /// disappears even though the data is intact. The red look is kept by
+    /// `.tint` on the Button — the color comes from `BasicListConfig`
+    /// (`destructiveTint`), the engine never reads design tokens itself.
+    /// Each action also exposes `.accessibilityAction(named:)`: the swipe
+    /// gesture doesn't exist for VoiceOver, actions must be activatable from
+    /// the rotor.
     @ViewBuilder
     func basicRowSwipeActions(
         _ actions: [BasicListSwipeAction]?,
@@ -419,17 +428,18 @@ private extension View {
     ) -> some View {
         if let actions, !actions.isEmpty {
             self.swipeActions(edge: edge, allowsFullSwipe: true) {
-                // Id theo vị trí: hai action trùng title vẫn là hai nút
-                // riêng (id \.title sẽ đụng nhau → ForEach undefined).
+                // Identity by position: two actions with the same title are
+                // still two separate buttons (id \.title would collide →
+                // undefined ForEach).
                 ForEach(Array(actions.enumerated()), id: \.offset) { _, action in
                     Button {
                         action.handler()
                     } label: {
                         Label(action.title, systemImage: action.systemImage)
                     }
-                    // Chỉ destructive nhận tint theo config — action thường
-                    // giữ tint mặc định của hệ thống như bản gốc. KHÔNG
-                    // dùng role .destructive (xem doc phía trên).
+                    // Only destructive actions take the config tint — regular
+                    // actions keep the system default like the stock look. Do
+                    // NOT use role .destructive (see the doc above).
                     .tint(action.isDestructive ? destructiveTint : nil)
                 }
             }
@@ -443,23 +453,26 @@ private extension View {
         }
     }
 
-    /// Probe đáy gắn TRÊN THÂN List (`onScrollGeometryChange` quan sát
-    /// scroll view tại điểm gắn): observer sống trọn vòng đời list và
-    /// nhận mọi thay đổi geometry từ lúc list xuất hiện — đây là điểm
-    /// khác biệt với cơ chế cũ gắn probe lên row sentinel, mà List lazy
-    /// chỉ materialize row đó khi user đã cuộn sát đáy, nên observer
-    /// không tồn tại trong suốt hành trình cuộn và ngưỡng threshold
-    /// thành vô nghĩa (load-more chỉ nổ khi cell cuối hiện ra).
+    /// The bottom probe attaches to the List BODY (`onScrollGeometryChange`
+    /// observes the scroll view at the attach point): the observer lives for
+    /// the whole list lifetime and receives every geometry change from the
+    /// moment the list appears — this is the difference from the old approach
+    /// of attaching the probe to a sentinel row, which a lazy List only
+    /// materializes when the user has already scrolled near the bottom, so
+    /// the observer didn't exist for the whole scroll journey and the
+    /// threshold was meaningless (load-more only fired when the last cell
+    /// showed up).
     ///
-    /// Fire theo CHUYỂN TRẠNG THÁI, không fan theo tick cuộn: (1) đi
-    /// vào vùng đáy — ngoài ngưỡng → trong ngưỡng; (2) trang mới đính
-    /// vào (`contentHeight` đổi) mà vẫn trong vùng — nạp tiếp cho tới
-    /// khi ra khỏi vùng hoặc hết trang. Lượt trang đầu list ngắn — chưa
-    /// đủ đầy màn thì không có phép đổi geometry nào sau lúc gắn — do
-    /// `BasicListScrollSentinel` bù bằng `onAppear`. Lượt fire trùng
-    /// (probe + sentinel cùng nổ) nằm phía VM: `Paging.inFlight` chặn
-    /// song song, `exhausted` bỏ qua khi hết trang — probe không giữ
-    /// state, action vô trạng thái (old/new từ chính modifier).
+    /// Fires on STATE TRANSITIONS, not on scroll ticks: (1) entering the
+    /// bottom region — outside the threshold → inside; (2) a new page
+    /// attaching (`contentHeight` changed) while still in the region — keeps
+    /// loading until the distance exceeds the region or pages run out. For a
+    /// short first page — not filling a screen yet — the
+    /// `BasicListScrollSentinel` backstops via `onAppear`. Duplicate fires
+    /// (probe + sentinel together) are blocked on the VM side:
+    /// `Paging.inFlight` blocks parallel loads, `exhausted` skips when out of
+    /// pages — the probe keeps no state, the action is stateless (old/new come
+    /// from the modifier itself).
     @ViewBuilder
     func basicListBottomProbe(
         pagesAhead: Int,
@@ -475,9 +488,9 @@ private extension View {
                     contentHeight: geometry.contentSize.height,
                     viewportHeight: geometry.containerSize.height)
             } action: { old, new in
-                // pagesAhead > 0: ngưỡng theo VIEWPORT (màn hình) —
-                // prefetch kiểu ASDK leadingScreens, vùng phóng theo
-                // viewport hiện tại; = 0: ngưỡng pixel tĩnh.
+                // pagesAhead > 0: threshold in VIEWPORT units (screens) —
+                // ASDK-style leadingScreens prefetch, the region scales with
+                // the current viewport; = 0: static pixel threshold.
                 let threshold = pagesAhead > 0
                     ? CGFloat(pagesAhead) * new.viewportHeight
                     : pixelThreshold
@@ -494,12 +507,12 @@ private extension View {
     }
 }
 
-/// Probe đáy của load-more — giá trị biến đổi theo scroll geometry để
-/// so sánh "đã tới vùng đáy". `contentHeight` nằm trong probe để trang
-/// mới đính vào (list cao thêm) là một PHÉP ĐỔI riêng, dù khoảng cách
-/// đáy tình cờ giữ nguyên. `viewportHeight` phục vụ ngưỡng prefetch
-/// `pagesAhead` (N × màn hình) — action closure chỉ thấy probe value,
-/// không thấy geometry thô.
+/// The load-more bottom probe — values derived from scroll geometry to
+/// compare against "reached the bottom region". `contentHeight` is part of
+/// the probe so a new page attaching (the list grows taller) is a SEPARATE
+/// change event even when the distance happens to stay the same.
+/// `viewportHeight` serves the `pagesAhead` prefetch threshold (N × screens)
+/// — the action closure only sees the probe value, not raw geometry.
 private struct BasicListBottomProbe: Equatable {
     let distanceFromBottom: CGFloat
     let contentHeight: CGFloat
@@ -508,13 +521,13 @@ private struct BasicListBottomProbe: Equatable {
 
 // MARK: - Preview
 //
-// Demo sống của engine — 6 hình: flat (swipe/tap/load-more/empty-state),
-// sectioned (sticky header), ít dòng, phân trang + refresh, refresh chậm,
-// refresh lỗi tự xử lý. Data là fixture giao dịch tiếng Anh qua
-// `PreviewRow` (glyph tròn + tiêu đề + phụ đề + tiền) cho mỗi hình có
-// diện mạo riêng, không qua bảng Localizable của app. Config neutral
-// (giá trị design thật do caller truyền — app truyền qua
-// `BasicListConfig.house`).
+// Live demo of the engine — 6 shapes: flat (swipe/tap/load-more/empty-state),
+// sectioned (sticky header), few rows, pagination + refresh, slow refresh,
+// refresh error handled inside the handler. Data is English transaction
+// fixtures rendered through `PreviewRow` (round glyph + title + subtitle +
+// money) so every shape has its own look, without going through the app's
+// Localizable tables. Neutral config (the real design values are passed by
+// the caller — the app passes `BasicListConfig.house`).
 
 private let previewConfig = BasicListConfig(
     destructiveActionTint: .red, bottomClearance: 60)
@@ -528,9 +541,9 @@ private struct PreviewItem: Identifiable {
     let isIncome: Bool
 }
 
-/// Fixture giao dịch tiếng Anh dùng chung mọi preview — đủ đa dạng
-/// glyph/màu/tiền để các hình demo không nhìn như nhau. Chuỗi là fixture
-/// của preview, không qua bảng Localizable của app.
+/// English transaction fixtures shared by every preview — diverse enough in
+/// glyphs/colors/money that the demo shapes don't look alike. The strings are
+/// preview fixtures, not routed through the app's Localizable tables.
 private let previewFixtures: [
     (title: String, note: String, symbol: String, amount: Double, isIncome: Bool)
 ] = [
@@ -544,8 +557,8 @@ private let previewFixtures: [
     ("Dividend", "Quarterly payout", "chart.line.uptrend.xyaxis", 62.30, true),
 ]
 
-/// Item từ fixture (index 1-based, quay vòng khi vượt) — `note` ép đè
-/// khi caller cần nhãn riêng (vd "Loaded round 2").
+/// Item from the fixture (1-based index, wraps around) — `note` overrides the
+/// fixture label when the caller needs its own (e.g. "Loaded round 2").
 private func fixtureItem(at index: Int, note: String? = nil) -> PreviewItem {
     let fixture = previewFixtures[(index - 1) % previewFixtures.count]
     return PreviewItem(
@@ -554,19 +567,20 @@ private func fixtureItem(at index: Int, note: String? = nil) -> PreviewItem {
         isIncome: fixture.isIncome)
 }
 
-/// Item từ fixture kèm nhãn trang — nhịp load-more hiện ngay trong data.
+/// Item from the fixture with a page label — the load-more rhythm shows up
+/// right in the data.
 private func pagedFixtureItem(at index: Int, page: Int) -> PreviewItem {
     fixtureItem(at: index, note: "\(previewFixtures[(index - 1) % previewFixtures.count].note) · page \(page)")
 }
 
-/// "+$2,400.00" / "−$86.40" — thu xanh, chi màu thường, chữ số đều nhau
-/// (monospaced) để cột tiền thẳng hàng.
+/// "+$2,400.00" / "−$86.40" — income green, expense regular, digits uniform
+/// (monospaced) so the money column stays aligned.
 private func previewAmount(_ item: PreviewItem) -> String {
     String(format: item.isIncome ? "+$%.2f" : "−$%.2f", item.amount)
 }
 
-/// Row demo của preview: glyph tròn màu + tiêu đề + phụ đề + tiền —
-/// gần khúc dạo đầu của cell app hơn một `Text` trần.
+/// Demo row for previews: colored round glyph + title + subtitle + money —
+/// closer to the opening bars of a real app cell than a bare `Text`.
 private struct PreviewRow: View {
     let item: PreviewItem
 
@@ -598,8 +612,8 @@ private struct PreviewRow: View {
     }
 }
 
-/// Header demo — tiêu đề + phụ đề giải thích kịch bản, thay cho dòng
-/// `Text` trần khó phân biệt giữa các preview.
+/// Demo header — title + subtitle explaining the scenario, replacing a bare
+/// `Text` that is hard to tell apart across previews.
 private struct PreviewHeader: View {
     let title: String
     let subtitle: String
@@ -618,8 +632,9 @@ private struct PreviewHeader: View {
     }
 }
 
-/// Preview dựng qua struct riêng — logic phức tạp (state mutate trong
-/// closures) nhồi thẳng vào macro #Preview làm type-checker crash.
+/// Previews are built through dedicated structs — complex logic (state
+/// mutations inside closures) crammed straight into a #Preview macro crashes
+/// the type-checker.
 private struct FlatListPreview: View {
     @State private var items: [PreviewItem] = (1...12).map { fixtureItem(at: $0) }
     @State private var loadRound = 0
@@ -660,15 +675,17 @@ private struct FlatListPreview: View {
                         note: "Loaded round \(loadRound)")
                 }
             }
-            // Nền preview màu neutral — module không thấy modifier design app.
+            // Neutral preview background — the module never sees app design
+            // modifiers.
             .background(Color.secondary.opacity(0.12))
     }
 }
 
 private struct SectionedListPreview: View {
-    /// Header nhóm: nhãn ngày + số giao dịch — sticky khi cuộn (đối
-    /// trọng của sectionHeadersPinToVisibleBounds) nên phải tự đủ ngữ
-    /// cảnh, không dựa vào nội dung đã cuộn qua.
+    /// Group header: day label + transaction count — sticky while scrolling
+    /// (the counterpart of sectionHeadersPinToVisibleBounds) so it must be
+    /// self-sufficient in context, never relying on content that has already
+    /// scrolled past.
     private static func sectionHeader(_ label: String, count: Int) -> some View {
         HStack {
             Text(label)
@@ -710,11 +727,12 @@ private struct SectionedListPreview: View {
     }
 }
 
-/// 3 dòng — dưới một màn hình: không gắn onLoadMore nên probe đáy không
-/// có nghĩa (list ngắn không tạo thay đổi geometry sau lúc gắn), header
-/// lẫn footer vẫn cuộn cùng nội dung, swipe + tap vẫn sống. Hình "data
-/// ít"
-/// của app thật: vài dòng phải đứng đúng nhịp, không thêm trống ảo.
+/// 3 rows — under one screen: no onLoadMore attached, so the bottom probe has
+/// no meaning (a short list produces no geometry change after attach); header
+/// and footer still scroll with content, swipe + tap stay alive. The "little
+/// data"
+/// shape of real apps: a few rows must keep the exact rhythm, no artificial
+/// blank space.
 private struct FewItemsPreview: View {
     @State private var items = [7, 3, 1].map { fixtureItem(at: $0) }
 
@@ -746,12 +764,13 @@ private struct FewItemsPreview: View {
     }
 }
 
-/// 4 trang × 25 dòng — trang đầu đủ dài để cuộn thật: vào vùng ngưỡng
-/// đáy là probe fire, trang mới đính vào trong vùng là nạp TIẾP (liên
-/// tục) cho tới trang 4; hết trang handler no-op — bắt chước `exhausted`
-/// phía VM, nơi thật chặn fire trùng của probe + sentinel. Kèm refresh
-/// đè load-more: về trang 1 dựng lại data — hai cơ chế dùng chung một
-/// list không xung đột identity.
+/// 4 pages × 25 rows — the first page is long enough to really scroll: once
+/// in the bottom region the probe fires, a page attaching inside the region
+/// keeps it loading CONTINUOUSLY until page 4; out of pages the handler
+/// no-ops — mimicking the VM-side `exhausted`, where the real thing blocks
+/// duplicate probe + sentinel fires. Refresh overrides load-more: back to
+/// page 1 rebuilding the data — two mechanisms sharing one list with no
+/// identity conflict.
 private struct PagedListPreview: View {
     private static let rowsPerPage = 25
     private static let lastPage = 4
@@ -786,10 +805,10 @@ private struct PagedListPreview: View {
     }
 }
 
-/// Refresh spinner đủ lâu (1.5s) để kéo-thả thấy rõ: spinner giữ tới khi
-/// handler xong là tự kết thúc — không fan theo tick. Đếm lượt ở header
-/// chứng minh mỗi pull đúng một lượt; `items.shuffle()` cho thay đổi
-/// nhìn thấy sau mỗi lần kéo.
+/// A long-enough refresh spinner (1.5s) to clearly see the pull: the spinner
+/// holds until the handler finishes and ends by itself — no tick fan-out.
+/// The header counts pulls proving each pull is exactly one round;
+/// `items.shuffle()` gives a visible change after every pull.
 private struct SlowRefreshPreview: View {
     @State private var refreshCount = 0
     @State private var items = [7, 3, 1, 5].map { fixtureItem(at: $0) }
@@ -810,10 +829,11 @@ private struct SlowRefreshPreview: View {
     }
 }
 
-/// Lỗi handler tự ném bị refreshable nuốt — spinner tự kết thúc, KHÔNG
-/// có gì hiện lên SwiftUI: muốn trình bày lỗi phải tự xử lý ngay trong
-/// handler (doc của `.onRefresh`). Preview bắt error và hiện banner
-/// footer — pull refresh là thấy, chứng minh đường "lỗi tự xử lý".
+/// An error thrown by the handler gets swallowed by refreshable — the spinner
+/// ends by itself, NOTHING shows up in SwiftUI: to present an error you must
+/// handle it inside the handler (see `.onRefresh` docs). The preview catches
+/// the error and shows a footer banner — pull refresh makes it visible,
+/// demonstrating the "error handled in the handler" path.
 private enum PreviewRefreshError: String, Error {
     case networkDown = "network down (simulated)"
 }

@@ -2,23 +2,23 @@ import SwiftUI
 import Testing
 @testable import BasicList
 
-// MARK: - Vocabulary của BasicList — test trên macOS host (không render UI)
+// MARK: - BasicList vocabulary — tested on a macOS host (no UI rendering)
 //
-// Phần test được là giá trị/mapping thuần: config, section identity +
-// itemID mapping, footer tuỳ chọn, swipe action, spacer, sentinel,
-// header mode. Phần render (probe geometry, sticky header, swipe animation)
-// thuộc preview — host test không dựng được List.
+// The testable parts are pure value/mapping behavior: config, section identity +
+// itemID mapping, optional footer, swipe action, spacer, sentinel,
+// header mode. Rendering parts (probe geometry, sticky headers, swipe animation)
+// belong to previews — host tests can't build a List.
 
 struct BasicListConfigTests {
 
-    @Test("Init lưu đúng giá trị truyền vào")
+    @Test("Init stores the values passed in")
     func initStoresValues() {
         let config = BasicListConfig(destructiveActionTint: .red, bottomClearance: 80)
         #expect(config.destructiveActionTint == .red)
         #expect(config.bottomClearance == 80)
     }
 
-    @Test("Equatable — cùng giá trị bằng nhau, khác giá trị khác nhau")
+    @Test("Equatable — same values are equal, different values differ")
     func equality() {
         let a = BasicListConfig(destructiveActionTint: .red, bottomClearance: 0)
         let b = BasicListConfig(destructiveActionTint: .red, bottomClearance: 0)
@@ -32,7 +32,7 @@ struct BasicListSectionTests {
 
     private struct Item: Equatable { let id: Int }
 
-    @Test("Section identity bọc AnyHashable — Hashable nào cũng nhận được")
+    @Test("Section identity wraps AnyHashable — any Hashable is accepted")
     func sectionIdentityWrapsAnyHashable() {
         let section = BasicListSection(
             section: "Today", items: [Item(id: 1)], itemID: { AnyHashable($0.id) }) {
@@ -41,7 +41,7 @@ struct BasicListSectionTests {
         #expect(section.section == AnyHashable("Today"))
     }
 
-    @Test("itemID áp đúng closure id của caller")
+    @Test("itemID applies the caller's id closure")
     func itemIDAppliesCallerClosure() {
         let section = BasicListSection(
             section: "day", items: [Item(id: 5)], itemID: { AnyHashable($0.id * 10) }) {
@@ -50,7 +50,7 @@ struct BasicListSectionTests {
         #expect(section.itemID(Item(id: 5)) == AnyHashable(50))
     }
 
-    @Test("items giữ nguyên thứ tự và giá trị")
+    @Test("Items keep their order and values")
     func itemsPassthrough() {
         let items = [Item(id: 3), Item(id: 1), Item(id: 2)]
         let section = BasicListSection(
@@ -60,16 +60,16 @@ struct BasicListSectionTests {
         #expect(section.items == items)
     }
 
-    @Test("Header lưu closure — gọi dựng được AnyView")
+    @Test("Header stored as a closure — calling it builds an AnyView")
     func headerBuildsAnyView() {
         let section = BasicListSection(
             section: "day", items: [Item(id: 1)], itemID: { AnyHashable($0.id) }) {
-            Text("Header của nhóm")
+            Text("Group header")
         }
         _ = section.header()
     }
 
-    @Test("Init không footer → footer nil; init có footer → dựng được view")
+    @Test("Init without footer → footer nil; init with footer → builds a view")
     func footerOptional() {
         let plain = BasicListSection(
             section: "day", items: [Item(id: 1)], itemID: { AnyHashable($0.id) }) {
@@ -81,7 +81,7 @@ struct BasicListSectionTests {
             section: "day", items: [Item(id: 1)], itemID: { AnyHashable($0.id) }) {
             Text("H")
         } footer: {
-            Text("Footer của nhóm")
+            Text("Group footer")
         }
         #expect(withFooter.footer != nil)
         _ = withFooter.footer?()
@@ -90,13 +90,13 @@ struct BasicListSectionTests {
 
 struct BasicListSwipeActionTests {
 
-    @Test("isDestructive mặc định false — action thường giữ tint hệ thống")
+    @Test("isDestructive defaults to false — regular actions keep the system tint")
     func nonDestructiveDefault() {
         let action = BasicListSwipeAction(title: "Pin", systemImage: "pin.fill") {}
         #expect(!action.isDestructive)
     }
 
-    @Test("Fields lưu đúng; handler gọi được bao nhiêu lần tuỳ ý")
+    @Test("Fields stored correctly; the handler fires as many times as called")
     func fieldsAndHandler() {
         var called = 0
         let action = BasicListSwipeAction(
@@ -112,25 +112,25 @@ struct BasicListSwipeActionTests {
 
 struct VocabularyTests {
 
-    @Test("Ngưỡng đáy mặc định 600pt — nguồn duy nhất cho probe + sentinel")
+    @Test("Default bottom threshold 600pt — single source for probe + sentinel")
     func defaultBottomThreshold() {
         #expect(BasicListScrollSentinel.defaultBottomThreshold == 600)
     }
 
-    @Test("Header mode đủ 2 case — cuộn cùng nội dung và ghim đỉnh")
+    @Test("Header mode has both cases — scrolls with content and pinned to top")
     func headerModeCases() {
         let scrolls: BasicListHeaderMode = .scrollsWithContent
         let pinned: BasicListHeaderMode = .pinnedTop
-        if case .scrollsWithContent = scrolls {} else { Issue.record("Thiếu case .scrollsWithContent") }
-        if case .pinnedTop = pinned {} else { Issue.record("Thiếu case .pinnedTop") }
+        if case .scrollsWithContent = scrolls {} else { Issue.record("Missing case .scrollsWithContent") }
+        if case .pinnedTop = pinned {} else { Issue.record("Missing case .pinnedTop") }
     }
 
-    @Test("Spacer giữ height đã truyền")
+    @Test("Spacer keeps the height passed in")
     func spacerKeepsHeight() {
         #expect(BasicListSpacer(height: 42).height == 42)
     }
 
-    @Test("EdgeInsets.zero shim trùng EdgeInsets rỗng — đối trọng của basicListRowStyle()")
+    @Test("EdgeInsets.zero shim equals an empty EdgeInsets — counterpart of basicListRowStyle()")
     func edgeInsetsZeroShim() {
         #expect(EdgeInsets.zero == EdgeInsets())
     }
