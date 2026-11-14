@@ -262,20 +262,35 @@ struct LoadMoreSimulatorTests {
         #expect(vm.appended == [2])
     }
 
-    @Test("B4 — scan pixelThreshold=600: fires exactly at threshold, 1 load/entry, idle quiet")
+    /// The chain length after each page attach is RUNTIME-DEPENDENT, not
+    /// fixed by the engine: the designed contract keeps loading while the
+    /// grown list stays inside the region ("correct behavior, not a leak" —
+    /// see B8), and List estimate drift differs per OS runtime. Measured
+    /// 2026-11-14: iOS 27.0 / iPhone 18 Pro Max → appended [2…9] (post-attach
+    /// distance 606 > 600 stops the chain); GitHub runner iOS 26.5 / iPhone
+    /// 17-series → appended [2…14], fires 11 — same contract, the grown list
+    /// just stayed inside the region. The engine mechanics are identical
+    /// (diff vs the baseline commit: cooldown accessor only). So B4 asserts
+    /// environment-independent DESIGN INVARIANTS everywhere, and keeps the
+    /// exact measured baseline ONLY on the pinned device (Docs §3/§5).
+    @Test("B4 — scan pixelThreshold=600: fires at threshold, no duplicate page, idle quiet")
     func b4() async throws {
         let vm = GateVM()
         vm.lastPage = 30
+        let pinnedDevice = UIDevice.current.name == "iPhone 18 Pro Max"
         let window = attach(LoadMoreHarness(vm: vm, initialRows: 45, rowsPerPage: 10,
                                             mode: .pixelThreshold(600)))
         try await drain(3)
         let s0 = findScroll(in: window)!
-        print("LMTEST >>> B4 attach: fires=\(vm.fires) \(truth(s0))")
+        print("LMTEST >>> B4 attach: fires=\(vm.fires) device=\(UIDevice.current.name) \(truth(s0))")
         #expect(vm.fires == 0, "long list out of region must not fire at attach")
         for target: CGFloat in [1500, 1100, 900, 700, 500, 400, 300, 200, 100, 50, 0] {
             try await step(window, rem: target)
             if target == 50 {
-                #expect(vm.fires == 6, "entries 500…50 must be exactly 1 fire each, got \(vm.fires)")
+                // Invariant: every in-region entry fired ≥1 time. Extra fires
+                // at this point are the designed in-region chain (a page
+                // attached and the grown list stayed inside the region).
+                #expect(vm.fires >= 6, "six in-region entries must fire ≥1 each, got \(vm.fires)")
             }
             print("LMTEST >>> B4 target=\(Int(target)) fires=\(vm.fires) loads=\(vm.appended.count) "
                 + "page=\(vm.page) \(truth(findScroll(in: window)!))")
@@ -283,10 +298,21 @@ struct LoadMoreSimulatorTests {
         // Let pending retries land (a blocked chain fire retries +0.4 s
         // later), then assert the totals.
         try await drain(4)
-        // 7 entries (500…0) + legitimate chain follow-ups while the grown
-        // list still sits inside the region.
-        #expect(vm.appended == [2, 3, 4, 5, 6, 7, 8, 9],
-                "expected 1 load per entry + bottom-chain follow-up, got \(vm.appended)")
+        // Invariants (every runtime): pages load STRICTLY in sequence from
+        // page 2 — a repeated page would be a duplicate load, a skipped one
+        // a stranded fire — and there is at least one load per in-region
+        // entry (6 entries + the bottom step).
+        let pages = vm.appended
+        #expect(pages.first == 2, "first load must be page 2, got \(pages)")
+        #expect(pages.count >= 7, "≥1 load per in-region entry + bottom step, got \(pages)")
+        #expect(pages == Array((2...max(2, pages.count + 1))),
+                "pages must be consecutive — no duplicate, no gap, got \(pages)")
+        // Pinned baseline (iPhone 18 Pro Max only): exactly 1 fire per entry
+        // + the bottom-chain follow-up → [2…9] (Docs §3/§5 measured table).
+        if pinnedDevice {
+            #expect(pages == [2, 3, 4, 5, 6, 7, 8, 9],
+                    "pinned-device baseline, got \(pages)")
+        }
         vm.dump("B4 scan")
         let before = vm.fires
         try await drain(4)

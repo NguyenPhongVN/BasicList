@@ -163,6 +163,22 @@ Two additional measured findings folded into the fix:
   exit the region after a load — the chain stops by design and the next scroll delivers
   the remaining page (B7 re-entry).
 
+### CI variance — chain length is runtime-dependent, not an engine constant (2026-11-14)
+
+The exact-sequence baselines above are pinned to the measurement environment in the
+header (iPhone 18 Pro Max, iOS 27.0). The SAME suite on other runtimes yields a
+LONGER designed in-region chain — first CI run (GitHub `macos-26`, iPhone 17-series
+sim, iOS 26.5): B4 appended **[2…14], fires 11** vs local [2…9], fires 7. Every
+engine invariant still held there: no fire outside the region, pages strictly
+consecutive (no duplicate, no gap), idle quiet, exhaustion respected. The cause is
+NOT a regression — the engine mechanics are byte-identical to the baseline commit
+(diff: cooldown accessor only); List estimate drift differs per OS runtime, so after
+a page attach the stationary list stayed ≤ 600 pt on iOS 26.5 and the DESIGNED
+chain kept loading (see the "page attach can push the user out" note above for the
+same mechanism in reverse). B4 therefore asserts design invariants on every runtime
+and the exact [2…9] baseline only on the pinned device. The local strict numbers
+remain the record to compare against when the probe/sentinel changes.
+
 ## 6. Rebuilding the harness (for measurements outside the repo)
 
 Deterministic params: window 390×844; row `Text.frame(height: 60)`; 10 rows per page;
