@@ -46,7 +46,7 @@ BasicListView(items: accounts, config: .house) { account in
 ```swift
 let sections = Dictionary(grouping: transactions, by: \.day)
     .map { day, txns in
-        BasicListSection(section: day, items: txns, itemID: \.id) {
+        BasicListSection(section: day, items: txns) {          // Identifiable items — no itemID needed
             TransactionDayHeader(day)      // sticky while scrolling
         } footer: {
             TransactionDayFooter(day)      // optional — omit the footer init when the group needs none
@@ -57,6 +57,8 @@ BasicListView(sections: sections, config: .house) { transaction in
     TransactionRowView(transaction)
 }
 ```
+
+Items that are NOT `Identifiable` → pass the `itemID:` closure instead (like `ForEach(id:)`), e.g. `itemID: \.key`.
 
 > `BasicListView` is an immutable struct — every modifier returns `Self`, so chains are
 > free. Items that aren't `Identifiable` use `init(items:id:config:content:)`, attaching
@@ -77,6 +79,10 @@ value: missing config is a compile error instead of a silent look.
 `config: .house`; changing the look of every list in the app means editing exactly that
 one wiring file, not scattering values per screen.
 
+**Evolution policy** — new fields ship ONLY as new `init` overloads with defaults (the
+existing init signature never changes) or as builder methods; a signature change here
+would break every list construction.
+
 ## 4. `BasicListView` API
 
 | API | Effect |
@@ -84,7 +90,7 @@ one wiring file, not scattering values per screen.
 | `.basicListHeader(mode:_:)` | Header at the top of the list — `.scrollsWithContent` (scrolls with content) or `.pinnedTop` (pinned) |
 | `.basicListEmptyState(_:)` | Empty hero that runs INSIDE the list (keeps list identity across the empty/loaded phases) |
 | `.basicListFooter(_:)` | Bottom content — after rows, before the load-more sentinel |
-| `.rowSwipeActions(edge:_:)` | Handler returns `[BasicListSwipeAction]` per item — `.trailing` by default; call again with `.leading` for left-edge swipe |
+| `.rowSwipeActions(edge:allowsFullSwipe:_:)` | Handler returns `[BasicListSwipeAction]` per item — `.trailing` by default; call again with `.leading` for left-edge swipe; `allowsFullSwipe: false` opts out of full swipe (default `true` — a full swipe fires the FIRST action of the edge immediately; the handler is a confirm hand-off) |
 | `.rowContextMenu(_:)` | Long-press menu per item — doesn't steal regular taps or swipes |
 | `.onRowTap(_:)` | Full-area row tap (contentShape) — doesn't steal the swipe gesture |
 | `.onMoveRows(_:)` | Drag-to-reorder flat list — handle only appears when `editMode` is `.active` |
@@ -97,8 +103,8 @@ that build their own list:
 
 | Type/helper | Meaning |
 |---|---|
-| `BasicListSection` | One group + sticky header + optional footer; header/footer stored as CLOSURES (built only when the group actually renders) |
-| `BasicListSwipeAction` | One swipe action; the destructive tint comes from config, not from the action |
+| `BasicListSection` | One group + sticky header + optional footer; header/footer stored as CLOSURES (built only when the group actually renders); `Item: Identifiable` → no `itemID:` needed (ids map to `\.id`) |
+| `BasicListSwipeAction` | One swipe action; `role: .destructive` (or the boolean `isDestructive:` form) marks data-destroying actions — the tint comes from config, not from the action |
 | `BasicListSpacer(height:)` | Transparent row of `height` — scrolls-with-content padding |
 | `BasicListScrollSentinel` | 1pt row that fires on `onAppear` — use as the last row when a screen builds its own list + load-more |
 | `.basicListRowStyle()` | Standard style for one row (no insets/separator, clear background) — your cell should call it |
@@ -125,6 +131,10 @@ lists; avoid the combination until it's needed and tested.
    of the user. The mode is the `BasicListLoadMoreMode` enum — `.pixelThreshold(CGFloat)`
    and `.pagesAhead(Int)` are mutually exclusive by type; the engine doesn't measure page
    height (data in / events out) — the unit of measure is the viewport.
+5. **Lifecycle**: pending retries (gate-blocked fires waiting out the cooldown) are
+   DISCARDED when the list leaves the hierarchy — firing against dead geometry is never
+   useful. Already-dispatched handler tasks are NOT cancelled — keep handler work
+   VM-owned so late runs are harmless (same contract as before).
 
 ### Measured behavior — post-fix verification 2026-11-14
 ([Docs/LoadMoreVerification.md](../../Docs/LoadMoreVerification.md))
@@ -157,7 +167,8 @@ tables in the verification doc.
   slide-away animation (SwiftUI considers the row deleted) — if nothing re-renders, the
   row disappears even though the data is intact. Full swipe fires the handler; the
   handler is the screen's own confirm hand-off (popup).
-- The red tint applies **only** to actions with `isDestructive: true`, taken from
+- The red tint applies **only** to destructive actions — `role: .destructive` (role
+  form, preferred) or `isDestructive: true` (boolean form) — taken from
   `config.destructiveActionTint`; regular actions keep the system tint.
 - Two actions with the same title remain two separate buttons (identity by position,
   not by title).
@@ -188,6 +199,8 @@ bare `Text`). Neutral config — the real design values exist only in the app
 
 - Standalone package, product `BasicList`. `public` API is exactly what callers need
   (types + inits + modifiers); engine internals (probe, swipe rendering, Row/Group) stay
-  private. The app layer imports explicitly with `import BasicList`.
+  private — a handful of stored properties are `package` so the host test suite can
+  assert the replace (last-call-wins) and emptiness semantics, still invisible to
+  consumers. The app layer imports explicitly with `import BasicList`.
 - Data in, events out throughout: the engine keeps no business state, the single data
   source is the array/sections the caller passes in.

@@ -30,12 +30,12 @@ struct BasicListConfigTests {
 
 struct BasicListSectionTests {
 
-    private struct Item: Equatable { let id: Int }
+    private struct Item: Equatable, Identifiable { let id: Int }
 
     @Test("Section identity wraps AnyHashable — any Hashable is accepted")
     func sectionIdentityWrapsAnyHashable() {
         let section = BasicListSection(
-            section: "Today", items: [Item(id: 1)], itemID: { AnyHashable($0.id) }) {
+            section: "Today", items: [Item(id: 1)], itemID: { $0.id }) {
             Text("H")
         }
         #expect(section.section == AnyHashable("Today"))
@@ -44,7 +44,7 @@ struct BasicListSectionTests {
     @Test("itemID applies the caller's id closure")
     func itemIDAppliesCallerClosure() {
         let section = BasicListSection(
-            section: "day", items: [Item(id: 5)], itemID: { AnyHashable($0.id * 10) }) {
+            section: "day", items: [Item(id: 5)], itemID: { $0.id * 10 }) {
             Text("H")
         }
         #expect(section.itemID(Item(id: 5)) == AnyHashable(50))
@@ -54,7 +54,7 @@ struct BasicListSectionTests {
     func itemsPassthrough() {
         let items = [Item(id: 3), Item(id: 1), Item(id: 2)]
         let section = BasicListSection(
-            section: "day", items: items, itemID: { AnyHashable($0.id) }) {
+            section: "day", items: items, itemID: { $0.id }) {
             Text("H")
         }
         #expect(section.items == items)
@@ -63,7 +63,7 @@ struct BasicListSectionTests {
     @Test("Header stored as a closure — calling it builds an AnyView")
     func headerBuildsAnyView() {
         let section = BasicListSection(
-            section: "day", items: [Item(id: 1)], itemID: { AnyHashable($0.id) }) {
+            section: "day", items: [Item(id: 1)], itemID: { $0.id }) {
             Text("Group header")
         }
         _ = section.header()
@@ -72,16 +72,34 @@ struct BasicListSectionTests {
     @Test("Init without footer → footer nil; init with footer → builds a view")
     func footerOptional() {
         let plain = BasicListSection(
-            section: "day", items: [Item(id: 1)], itemID: { AnyHashable($0.id) }) {
+            section: "day", items: [Item(id: 1)], itemID: { $0.id }) {
             Text("H")
         }
         #expect(plain.footer == nil)
 
         let withFooter = BasicListSection(
-            section: "day", items: [Item(id: 1)], itemID: { AnyHashable($0.id) }) {
+            section: "day", items: [Item(id: 1)], itemID: { $0.id }) {
             Text("H")
         } footer: {
             Text("Group footer")
+        }
+        #expect(withFooter.footer != nil)
+        _ = withFooter.footer?()
+    }
+
+    @Test("Identifiable convenience — ids map to \\ .id, footer optional")
+    func identifiableConvenience() {
+        let plain = BasicListSection(section: "day", items: [Item(id: 7)]) {
+            Text("H")
+        }
+        #expect(plain.section == AnyHashable("day"))
+        #expect(plain.itemID(Item(id: 7)) == AnyHashable(7), "convenience maps \\ .id")
+        #expect(plain.footer == nil)
+
+        let withFooter = BasicListSection(section: "day", items: [Item(id: 7)]) {
+            Text("H")
+        } footer: {
+            Text("F")
         }
         #expect(withFooter.footer != nil)
         _ = withFooter.footer?()
@@ -94,6 +112,16 @@ struct BasicListSwipeActionTests {
     func nonDestructiveDefault() {
         let action = BasicListSwipeAction(title: "Pin", systemImage: "pin.fill") {}
         #expect(!action.isDestructive)
+    }
+
+    @Test("Role init — .destructive maps to isDestructive, nil keeps the system tint")
+    func roleInit() {
+        let destructive = BasicListSwipeAction(
+            title: "Delete", systemImage: "trash", role: .destructive) {}
+        #expect(destructive.isDestructive)
+        let plain = BasicListSwipeAction(
+            title: "Pin", systemImage: "pin.fill", role: nil) {}
+        #expect(!plain.isDestructive)
     }
 
     @Test("Fields stored correctly; the handler fires as many times as called")

@@ -33,7 +33,7 @@ Standalone package, pure SwiftUI — **reads no app design layer**: every color/
 > simulator SDKs) but with reduced behavior — `swipeActions` doesn't exist there, so
 > rows expose their actions as accessibility actions only; `listRowSeparator` and
 > `scrollContentBackground` are likewise no-ops. Details:
-> [Docs/LoadMoreVerification.md](Docs/LoadMoreVerification.md) §5.
+> [Docs/LoadMoreVerification.md](Docs/LoadMoreVerification.md) §4 (F5).
 
 ## Installation
 
@@ -91,12 +91,12 @@ BasicListView(items: accounts, id: \.name, config: .house) { account in
 
 ```swift
 let sections: [BasicListSection<Transaction>] = [
-    BasicListSection(section: "Today", items: todays, itemID: \.id) {
+    BasicListSection(section: "Today", items: todays) {          // Identifiable items — no itemID needed
         DayHeader("TODAY")          // sticky while scrolling
     } footer: {
         DayFooter("TODAY")          // optional — omit the footer init when the group needs none
     },
-    BasicListSection(section: "Yesterday", items: yesterdays, itemID: \.id) {
+    BasicListSection(section: "Yesterday", items: yesterdays) {
         DayHeader("YESTERDAY")
     },
 ]
@@ -106,9 +106,19 @@ BasicListView(sections: sections, config: .house) { transaction in
 }
 ```
 
+Items that are NOT `Identifiable` — attach an id via the `itemID:` closure, like `ForEach(id:)`:
+
+```swift
+BasicListSection(section: "Today", items: rows, itemID: \.key) { DayHeader("TODAY") }
+```
+
 ### Chain modifiers
 
-Builder-style modifiers returning `Self` — chain freely, no hidden state depends on call order:
+Builder-style modifiers returning `Self` — chain freely, no hidden state depends on call order.
+
+> ⚠️ **Chain rule**: `basicList*` modifiers only attach directly to `BasicListView` — a
+> system modifier (`padding`, `background`, …) returns `some View` and ends the chain.
+> Apply system modifiers **last**:
 
 ```swift
 BasicListView(items: transactions, config: .house) { TransactionRowView($0) }
@@ -191,6 +201,10 @@ extension BasicListConfig {
 ```
 
 Changing the look of every list in the app means editing exactly that one wiring file.
+
+**Evolution policy** — this struct is the library's main semver surface: new fields ship
+ONLY as new `init` overloads with defaults (the existing init signature never changes)
+or as builder methods, so upgrades stay source-compatible.
 
 ## The engine's three principles
 

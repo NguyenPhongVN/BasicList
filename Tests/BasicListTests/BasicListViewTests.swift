@@ -50,15 +50,25 @@ struct BasicListViewTests {
         _ = view.body
     }
 
+    @Test("Flat init with a key-path — generic id closure accepts key paths")
+    func flatInitWithKeyPath() {
+        struct Tag { let key: String }
+        let tags = [Tag(key: "a"), Tag(key: "b")]
+        let view = BasicListView(items: tags, id: \.key, config: config) {
+            Text($0.key)
+        }
+        _ = view.body
+    }
+
     @Test("Sectioned init — groups with and without footers both build")
     func sectionedInitMixedFooters() {
         let sections: [BasicListSection<Item>] = [
-            BasicListSection(section: "Today", items: [Item(id: 1)], itemID: { AnyHashable($0.id) }) {
+            BasicListSection(section: "Today", items: [Item(id: 1)], itemID: { $0.id }) {
                 Text("H1")
             } footer: {
                 Text("F1")
             },
-            BasicListSection(section: "Yesterday", items: [Item(id: 2)], itemID: { AnyHashable($0.id) }) {
+            BasicListSection(section: "Yesterday", items: [Item(id: 2)], itemID: { $0.id }) {
                 Text("H2")
             },
         ]
@@ -74,7 +84,7 @@ struct BasicListViewTests {
     @Test("Sectioned init accepts any AnyHashable — an Int section works too")
     func sectionedInitWithIntSection() {
         let sections = [
-            BasicListSection(section: 2026, items: [Item(id: 1)], itemID: { AnyHashable($0.id) }) {
+            BasicListSection(section: 2026, items: [Item(id: 1)], itemID: { $0.id }) {
                 Text("H")
             },
         ]
@@ -104,4 +114,85 @@ struct BasicListViewTests {
         _ = view.body
     }
     #endif
+
+    // MARK: Emptiness rule (package member — pinned per shape)
+
+    @Test("isEmpty — flat: rows present vs rows empty")
+    func isEmptyFlat() {
+        let nonEmpty = BasicListView(items: [Item(id: 1)], config: config) { _ in Text("") }
+        #expect(!nonEmpty.isEmpty)
+        let empty = BasicListView(items: [Item](), config: config) { _ in Text("") }
+        #expect(empty.isEmpty)
+    }
+
+    @Test("isEmpty — sectioned: empty only when EVERY group is empty")
+    func isEmptySectioned() {
+        func section(_ name: String, ids: [Int]) -> BasicListSection<Item> {
+            BasicListSection(section: name, items: ids.map(Item.init), itemID: { $0.id }) {
+                Text(name)
+            }
+        }
+        let oneGroupHasItems = BasicListView(
+            sections: [section("A", ids: []), section("B", ids: [1])],
+            config: config) { _ in Text("") }
+        #expect(!oneGroupHasItems.isEmpty)
+        let allGroupsEmpty = BasicListView(
+            sections: [section("A", ids: []), section("B", ids: [])],
+            config: config) { _ in Text("") }
+        #expect(allGroupsEmpty.isEmpty, "every group empty → the list is empty")
+        let noSections: [BasicListSection<Item>] = []
+        let noGroups = BasicListView(sections: noSections, config: config) { _ in Text("") }
+        #expect(noGroups.isEmpty, "no groups at all → the list is empty")
+    }
+
+    // MARK: Replace semantics (package members — last call wins)
+
+    @Test("Modifiers replace on re-call — last call wins, both edges coexist")
+    func lastCallWins() {
+        var view = BasicListView(items: [Item(id: 1)], config: config) { _ in Text("") }
+        #expect(view.headerBuilder == nil, "no header yet")
+        #expect(view.headerMode == .scrollsWithContent, "default header mode")
+
+        // Header: second call replaces builder + mode.
+        view = view.basicListHeader { Text("First") }
+        view = view.basicListHeader(mode: .pinnedTop) { Text("Second") }
+        #expect(view.headerBuilder != nil)
+        #expect(view.headerMode == .pinnedTop, "re-calling basicListHeader replaces mode")
+
+        // Swipe, same edge: second call replaces the handler.
+        view = view.rowSwipeActions { _ in
+            [BasicListSwipeAction(title: "First", systemImage: "1") {}]
+        }
+        view = view.rowSwipeActions { _ in
+            [BasicListSwipeAction(title: "Second", systemImage: "2") {}]
+        }
+        guard let trailing = view.rowSwipeHandler else {
+            Issue.record("trailing handler missing")
+            return
+        }
+        #expect(trailing(Item(id: 1)).first?.title == "Second",
+                "same edge replaces the handler")
+
+        // Swipe, other edge: coexists with the trailing handler, not replace.
+        view = view.rowSwipeActions(edge: .leading) { _ in
+            [BasicListSwipeAction(title: "Pin", systemImage: "pin") {}]
+        }
+        guard let leading = view.rowSwipeLeadingHandler else {
+            Issue.record("leading handler missing")
+            return
+        }
+        #expect(trailing(Item(id: 1)).first?.title == "Second")
+        #expect(leading(Item(id: 1)).first?.title == "Pin")
+
+        // Full-swipe opt-out is per edge — trailing keeps the default `true`.
+        view = view.rowSwipeActions(edge: .leading, allowsFullSwipe: false) { _ in [] }
+        #expect(view.rowSwipeAllowsFullSwipe, "trailing edge unchanged by the leading call")
+        #expect(!view.rowSwipeLeadingAllowsFullSwipe, "leading edge opted out of full swipe")
+
+        // Load-more: second call replaces handler + mode.
+        view = view.onLoadMore {}
+        view = view.onLoadMore(mode: .pagesAhead(3)) {}
+        #expect(view.onLoadMoreHandler != nil)
+        #expect(view.loadMoreMode == .pagesAhead(3), "re-calling onLoadMore replaces mode")
+    }
 }

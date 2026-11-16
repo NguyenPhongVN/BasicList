@@ -10,6 +10,10 @@ import SwiftUI
 /// Header mode of `BasicListView`:
 /// - `.scrollsWithContent`: the header scrolls with the content (default).
 /// - `.pinnedTop`: pinned to the top — sticky like a UIKit supplementary view.
+///
+/// Non-exhaustive by convention: this package is source-distributed, so new
+/// cases may be added in a minor version — avoid exhaustive `switch` over
+/// this mode type (use `if case` or keep a `default` branch).
 public enum BasicListHeaderMode: Equatable, Sendable {
     case scrollsWithContent
     case pinnedTop
@@ -18,6 +22,10 @@ public enum BasicListHeaderMode: Equatable, Sendable {
 /// How `onLoadMore` decides to fire — the two mechanisms are mutually
 /// exclusive BY TYPE: there is no combination where one silently overrides
 /// the other.
+///
+/// Non-exhaustive by convention: this package is source-distributed, so new
+/// cases may be added in a minor version — avoid exhaustive `switch` over
+/// this mode type (use `if case` or keep a `default` branch).
 public enum BasicListLoadMoreMode: Equatable, Sendable {
     /// Static pixel threshold — fires when the viewport is within this many
     /// points of the content bottom. The package default is
@@ -49,15 +57,20 @@ public enum BasicListLoadMoreMode: Equatable, Sendable {
 /// sentinel `onAppear`). Measured duplicates arrive 1–400 ms apart
 /// (`Docs/LoadMoreVerification.md` F2/F3) — a window gate collapses them to
 /// one fire. Mechanical state, not business state.
+///
+/// Time source: `ContinuousClock` — a cooldown is elapsed TIME, so it must be
+/// immune to wall-clock jumps (NTP sync, user changing the date) that a
+/// `Date()`-based window would misread.
 @MainActor
 package final class BasicListLoadGate {
 
-    /// Cooldown window between two fires. Injectable so tests don't wait on
-    /// the production value — production uses the measured default: duplicate
-    /// sources land 1–400 ms apart (`Docs/LoadMoreVerification.md` F2/F3).
+    /// Cooldown window between two fires, in seconds. Injectable so tests
+    /// don't wait on the production value — production uses the measured
+    /// default: duplicate sources land 1–400 ms apart
+    /// (`Docs/LoadMoreVerification.md` F2/F3).
     package let cooldown: TimeInterval
 
-    private var lastFireAt: Date?
+    private var lastFireAt: ContinuousClock.Instant?
 
     package init(cooldown: TimeInterval = 0.4) {
         self.cooldown = cooldown
@@ -66,8 +79,8 @@ package final class BasicListLoadGate {
     /// Returns true when this call may fire (and records the fire); false
     /// while still inside the cooldown window.
     package func tryFire() -> Bool {
-        let now = Date()
-        if let last = lastFireAt, now.timeIntervalSince(last) < cooldown {
+        let now = ContinuousClock.now
+        if let last = lastFireAt, (now - last) < .seconds(cooldown) {
             return false
         }
         lastFireAt = now
@@ -92,10 +105,10 @@ public struct BasicListSection<Item> {
     package let items: [Item]
     package let itemID: (Item) -> AnyHashable
 
-    public init(
+    public init<ID: Hashable>(
         section: any Hashable,
         items: [Item],
-        itemID: @escaping (Item) -> any Hashable,
+        itemID: @escaping (Item) -> ID,
         @ViewBuilder header: @escaping () -> some View
     ) {
         self.section = AnyHashable(section)
@@ -107,10 +120,10 @@ public struct BasicListSection<Item> {
 
     /// Group footer — symmetric with the header: rendered after the items of
     /// the group, scrolling with the content.
-    public init(
+    public init<ID: Hashable>(
         section: any Hashable,
         items: [Item],
-        itemID: @escaping (Item) -> any Hashable,
+        itemID: @escaping (Item) -> ID,
         @ViewBuilder header: @escaping () -> some View,
         @ViewBuilder footer: @escaping () -> some View
     ) {
@@ -120,12 +133,50 @@ public struct BasicListSection<Item> {
         self.header = { AnyView(header()) }
         self.footer = { AnyView(footer()) }
     }
+
+    // MARK: Identifiable convenience — no `itemID:` needed when ids are `\.id`
+
+    /// Convenience for `Item: Identifiable` — the id closure defaults to
+    /// `\.id` (same contract: unique across the section).
+    public init(
+        section: any Hashable,
+        items: [Item],
+        @ViewBuilder header: @escaping () -> some View
+    ) where Item: Identifiable {
+        self.init(
+            section: section, items: items,
+            itemID: { $0.id }, header: header)
+    }
+
+    /// Convenience for `Item: Identifiable` with a group footer — symmetric
+    /// with the itemID init above.
+    public init(
+        section: any Hashable,
+        items: [Item],
+        @ViewBuilder header: @escaping () -> some View,
+        @ViewBuilder footer: @escaping () -> some View
+    ) where Item: Identifiable {
+        self.init(
+            section: section, items: items,
+            itemID: { $0.id }, header: header, footer: footer)
+    }
+}
+
+/// Role of one swipe action — mirrors the system `ButtonRole` idiom
+/// (`Button(title:role:action:)`). Only `destructive` exists today: it takes
+/// the config tint (`BasicListConfig.destructiveActionTint`) and is the
+/// dedicated language for data-destroying actions; regular actions keep the
+/// system default tint.
+///
+/// Non-exhaustive by convention — new roles may be added in minor versions.
+public enum BasicListActionRole: Hashable, Sendable {
+    case destructive
 }
 
 /// One swipe action returned by the `.rowSwipeActions` handler — data in,
-/// events out: the caller describes the button (title/glyph/destructive flag),
-/// the engine draws it and reports back when the user taps. The tint of a
-/// destructive button does NOT live here — it comes from the list's
+/// events out: the caller describes the button (title/glyph/role), the engine
+/// draws it and reports back when the user taps. The tint of a destructive
+/// button does NOT live here — it comes from the list's
 /// `BasicListConfig.destructiveActionTint`.
 public struct BasicListSwipeAction {
     package let title: String
@@ -133,6 +184,23 @@ public struct BasicListSwipeAction {
     package let isDestructive: Bool
     package let handler: () -> Void
 
+    /// Role-based init — symmetric with the system `Button(title:role:action:)`.
+    /// `role: .destructive` takes the config tint; `nil` keeps the system
+    /// default tint.
+    public init(
+        title: String,
+        systemImage: String,
+        role: BasicListActionRole?,
+        handler: @escaping () -> Void
+    ) {
+        self.title = title
+        self.systemImage = systemImage
+        self.isDestructive = role == .destructive
+        self.handler = handler
+    }
+
+    /// Boolean form of the role init — kept for call sites that prefer the
+    /// flag; prefer `init(title:systemImage:role:handler:)` for new code.
     public init(
         title: String,
         systemImage: String,

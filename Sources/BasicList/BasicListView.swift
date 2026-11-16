@@ -19,7 +19,10 @@ import SwiftUI
 ///   closures passed in by the caller; the engine keeps no business state,
 ///   the single data source is the array/sections passed in.
 /// - **Immutable, modifiers return `Self`** — chain freely, no hidden state
-///   that changes with modifier call order.
+///   that changes with modifier call order. Chain rule: the `basicList*`
+///   modifiers only attach DIRECTLY to the `BasicListView` value — a system
+///   modifier (`padding`, `background`, …) returns `some View` and ENDS the
+///   chain, so apply system modifiers LAST.
 /// - **Design goes through config** — no hardcoded color/metric inside the
 ///   module; missing config is a compile error.
 ///
@@ -64,12 +67,20 @@ public struct BasicListView<Item, Content: View>: View {
     /// Colors/metrics passed in by the caller (see `BasicListConfig`) — the
     /// engine never reads design values by itself.
     private let config: BasicListConfig
-    private var headerBuilder: (() -> AnyView)?
-    private var headerMode: BasicListHeaderMode = .scrollsWithContent
+    // The following stored properties are `package` (not private) so the host
+    // test suite can assert the replace (last-call-wins) semantics of the
+    // modifiers and the emptiness rule — invisible to consumers either way.
+    package var headerBuilder: (() -> AnyView)?
+    package var headerMode: BasicListHeaderMode = .scrollsWithContent
     private var emptyStateBuilder: (() -> AnyView)?
     private var footerBuilder: (() -> AnyView)?
-    private var rowSwipeHandler: ((Item) -> [BasicListSwipeAction])?
-    private var rowSwipeLeadingHandler: ((Item) -> [BasicListSwipeAction])?
+    package var rowSwipeHandler: ((Item) -> [BasicListSwipeAction])?
+    package var rowSwipeLeadingHandler: ((Item) -> [BasicListSwipeAction])?
+    /// Full-swipe opt-out per edge — `true` keeps the system behavior (full
+    /// swipe fires the FIRST action of the edge immediately). `package` so
+    /// the host tests can pin the per-edge replace semantics.
+    package var rowSwipeAllowsFullSwipe = true
+    package var rowSwipeLeadingAllowsFullSwipe = true
     private var rowContextMenuHandler: ((Item) -> AnyView)?
     private var rowTapHandler: ((Item) -> Void)?
     private var onMoveHandler: ((IndexSet, Int) -> Void)?
@@ -77,8 +88,8 @@ public struct BasicListView<Item, Content: View>: View {
     private var editModeBinding: Binding<EditMode>?
     #endif
     private var onRefreshHandler: (() async throws -> Void)?
-    private var onLoadMoreHandler: (() async -> Void)?
-    private var loadMoreMode: BasicListLoadMoreMode = .pixelDefault
+    package var onLoadMoreHandler: (() async -> Void)?
+    package var loadMoreMode: BasicListLoadMoreMode = .pixelDefault
     /// Shared fire gate across the probe and the sentinel — collapses the
     /// duplicate fires (transition + estimate steps + sentinel) into one per
     /// cooldown window. One per list identity.
@@ -87,7 +98,8 @@ public struct BasicListView<Item, Content: View>: View {
     /// Items that are already `Identifiable`.
     ///
     /// Identity contract: `id` must be unique across the array (same contract
-    /// as `ForEach`) — duplicates produce undefined row identity.
+    /// as `ForEach`) — duplicates produce undefined row identity (and trip
+    /// the DEBUG-only duplicate assertion).
     public init(
         items: [Item],
         config: BasicListConfig,
@@ -96,20 +108,29 @@ public struct BasicListView<Item, Content: View>: View {
         self.shape = .flat(items.map { Row(item: $0, id: $0.id) })
         self.content = content
         self.config = config
+        #if DEBUG
+        Self.assertUniqueIDs(items.map { AnyHashable($0.id) },
+                             context: "init(items:config:content:)")
+        #endif
     }
 
     /// Items that are not `Identifiable` — attach an id via closure, like
     /// `ForEach(id:)`. The returned id must be unique across the array —
-    /// duplicates produce undefined row identity.
-    public init(
+    /// duplicates produce undefined row identity (and trip the DEBUG-only
+    /// duplicate assertion).
+    public init<ID: Hashable>(
         items: [Item],
-        id: @escaping (Item) -> any Hashable,
+        id: @escaping (Item) -> ID,
         config: BasicListConfig,
         @ViewBuilder content: @escaping (Item) -> Content
     ) {
         self.shape = .flat(items.map { Row(item: $0, id: AnyHashable(id($0))) })
         self.content = content
         self.config = config
+        #if DEBUG
+        Self.assertUniqueIDs(items.map { AnyHashable(id($0)) },
+                             context: "init(items:id:config:content:)")
+        #endif
     }
 
     /// A list of sections, each group with a sticky header (`section.header`)
@@ -123,16 +144,43 @@ public struct BasicListView<Item, Content: View>: View {
         config: BasicListConfig,
         @ViewBuilder content: @escaping (Item) -> Content
     ) {
-        self.shape = .sectioned(sections.map { section in
+        let groups = sections.map { section in
             Group(
                 section: section.section,
                 header: section.header,
                 footer: section.footer,
                 rows: section.items.map { Row(item: $0, id: section.itemID($0)) })
-        })
+        }
+        self.shape = .sectioned(groups)
         self.content = content
         self.config = config
+        #if DEBUG
+        Self.assertUniqueIDs(groups.map(\.section),
+                             context: "init(sections:config:content:) — section")
+        for group in groups {
+            Self.assertUniqueIDs(
+                group.rows.map(\.id),
+                context: "init(sections:config:content:) — item in section \(group.section)")
+        }
+        #endif
     }
+
+    #if DEBUG
+    /// Debug-only misuse detector for the identity contract: "duplicates
+    /// produce undefined row identity" otherwise surfaces only as a SwiftUI
+    /// runtime log deep inside the list. DEBUG-only so release pays nothing
+    /// (the O(n) set check runs on every body re-render — the inits re-map
+    /// the arrays each pass).
+    private static func assertUniqueIDs(
+        _ ids: [AnyHashable],
+        context: @autoclosure () -> String
+    ) {
+        var seen = Set<AnyHashable>(minimumCapacity: ids.count)
+        for id in ids where !seen.insert(id).inserted {
+            assertionFailure("BasicList \(context()): duplicate id \(id) — row identity is undefined")
+        }
+    }
+    #endif
 
     // MARK: Modifiers (builder-style, return Self to chain)
 
@@ -140,6 +188,9 @@ public struct BasicListView<Item, Content: View>: View {
     /// - `.scrollsWithContent` — scrolls with the content (default).
     /// - `.pinnedTop` — pinned to the top, sticky like a UIKit supplementary
     ///   view.
+    ///
+    /// Calling the modifier again REPLACES the previous header + mode (the
+    /// last call wins).
     ///
     /// ⚠️ `.pinnedTop` + sectioned is UNVERIFIED: the pinned header is a
     /// Section wrapping the groups' Sections — this combination has no caller
@@ -157,7 +208,8 @@ public struct BasicListView<Item, Content: View>: View {
     /// Replacement content for the rows when the list is empty — an empty
     /// hero that runs INSIDE the list (scrolls with it, keeps the list
     /// identity across the empty/loaded phases) instead of an outer `if`
-    /// branch making the list appear/disappear.
+    /// branch making the list appear/disappear. Calling the modifier again
+    /// replaces the previous builder (the last call wins).
     ///
     /// With `onLoadMore` attached, the load-more sentinel still sits after the
     /// empty state — an empty list fires load-more exactly once at attach; the
@@ -170,7 +222,8 @@ public struct BasicListView<Item, Content: View>: View {
 
     /// Bottom content — after all rows (or the empty-state), before the
     /// load-more sentinel; suggestion categories live here so they scroll
-    /// with the content like a real section of the list.
+    /// with the content like a real section of the list. Calling the modifier
+    /// again replaces the previous builder (the last call wins).
     public func basicListFooter(@ViewBuilder _ builder: @escaping () -> some View) -> Self {
         var copy = self
         copy.footerBuilder = { AnyView(builder()) }
@@ -180,19 +233,27 @@ public struct BasicListView<Item, Content: View>: View {
     /// Swipe actions per row — data in, events out: the handler returns the
     /// action list per item, the list draws the buttons and reports back.
     /// `edge` defaults to `.trailing`; call again with `.leading` to get
-    /// swipe from the left edge — both edges can coexist, full swipe works
-    /// the same (the handler is a confirm hand-off, it never deletes the row
-    /// itself). Calling the modifier again with the SAME edge REPLACES that
-    /// edge's handler (not append) — the last call wins.
+    /// swipe from the left edge — both edges can coexist.
+    ///
+    /// `allowsFullSwipe` defaults to `true` (system behavior): a full swipe
+    /// fires the FIRST action of that edge immediately — the handler is a
+    /// confirm hand-off (popup), never a direct delete. Pass `false` when a
+    /// full swipe must not trigger anything and the tap has to be explicit.
+    ///
+    /// Calling the modifier again with the SAME edge REPLACES that edge's
+    /// handler (not append) — the last call wins.
     public func rowSwipeActions(
         edge: HorizontalEdge = .trailing,
+        allowsFullSwipe: Bool = true,
         _ handler: @escaping (Item) -> [BasicListSwipeAction]
     ) -> Self {
         var copy = self
         if edge == .leading {
             copy.rowSwipeLeadingHandler = handler
+            copy.rowSwipeLeadingAllowsFullSwipe = allowsFullSwipe
         } else {
             copy.rowSwipeHandler = handler
+            copy.rowSwipeAllowsFullSwipe = allowsFullSwipe
         }
         return copy
     }
@@ -264,7 +325,9 @@ public struct BasicListView<Item, Content: View>: View {
     /// Fires run as unstructured Tasks (fire + cooldown retries) that are NOT
     /// cancelled when the list leaves the hierarchy — the handler may still run
     /// after the view disappears. Keep handler work VM-owned so late runs are
-    /// harmless.
+    /// harmless. Pending retries (blocked fires waiting out the cooldown) are
+    /// DISCARDED on disappear instead of firing against dead geometry — only
+    /// already-dispatched handler tasks keep running.
     ///
     /// An EMPTY list still fires once at attach through the sentinel (it
     /// materializes immediately) — the VM's exhausted/loop guards decide what
@@ -278,6 +341,9 @@ public struct BasicListView<Item, Content: View>: View {
     ///   inside the region the probe loads CONTINUOUSLY as pages attach until
     ///   the distance exceeds the region or pages run out (VM `exhausted`).
     ///   `.pagesAhead(2)` ≈ "keep 2 pages ahead".
+    ///
+    /// Calling the modifier again REPLACES the previous handler + mode (the
+    /// last call wins).
     public func onLoadMore(
         mode: BasicListLoadMoreMode = .pixelDefault,
         _ handler: @escaping () async -> Void
@@ -356,8 +422,9 @@ public struct BasicListView<Item, Content: View>: View {
     }
 
     /// Whether the list has no items to show — per the shape in use: a
-    /// sectioned list is empty when EVERY group is empty.
-    private var isEmpty: Bool {
+    /// sectioned list is empty when EVERY group is empty. `package` so the
+    /// host tests can pin the per-shape emptiness rule.
+    package var isEmpty: Bool {
         switch shape {
         case .flat(let rows): return rows.isEmpty
         case .sectioned(let groups): return groups.allSatisfy(\.rows.isEmpty)
@@ -405,10 +472,12 @@ public struct BasicListView<Item, Content: View>: View {
             .basicRowSwipeActions(
                 rowSwipeHandler?(row.item),
                 edge: .trailing,
+                allowsFullSwipe: rowSwipeAllowsFullSwipe,
                 destructiveTint: config.destructiveActionTint)
             .basicRowSwipeActions(
                 rowSwipeLeadingHandler?(row.item),
                 edge: .leading,
+                allowsFullSwipe: rowSwipeLeadingAllowsFullSwipe,
                 destructiveTint: config.destructiveActionTint)
     }
 }
@@ -442,8 +511,9 @@ private extension View {
     #endif
 
     /// If the handler returns actions, attach them to the row; otherwise keep
-    /// the row untouched. `allowsFullSwipe: true` — full swipe fires the
-    /// handler immediately, but the handler is only a confirm hand-off
+    /// the row untouched. `allowsFullSwipe` passes through from
+    /// `.rowSwipeActions` — when true, a full swipe fires the FIRST action of
+    /// the edge immediately, but the handler is only a confirm hand-off
     /// (popup). Do NOT use `role: .destructive`:
     /// destructive-role + full swipe triggers the row slide-away animation
     /// (SwiftUI considers the row deleted) — if nothing re-renders, the row
@@ -457,6 +527,7 @@ private extension View {
     func basicRowSwipeActions(
         _ actions: [BasicListSwipeAction]?,
         edge: HorizontalEdge,
+        allowsFullSwipe: Bool,
         destructiveTint: Color
     ) -> some View {
         if let actions, !actions.isEmpty {
@@ -467,7 +538,7 @@ private extension View {
                 .basicRowSwipeAccessibility(actions)
             #else
             self
-                .swipeActions(edge: edge, allowsFullSwipe: true) {
+                .swipeActions(edge: edge, allowsFullSwipe: allowsFullSwipe) {
                     // Identity by position: two actions with the same title are
                     // still two separate buttons (id \.title would collide →
                     // undefined ForEach).
@@ -525,6 +596,10 @@ private extension View {
     /// strands (a page is never silently skipped) while a duplicate never
     /// resurrects (the first retry consumes the window, the rest are
     /// dropped, and a retry whose region check fails is discarded).
+    ///
+    /// On disappear the modifier invalidates the probe (`latestProbe = nil`)
+    /// so pending retries discard themselves instead of firing against the
+    /// dead list — already-dispatched handler tasks keep running (VM-owned).
 }
 
 /// The load-more bottom probe modifier — stateful on purpose: it keeps the
@@ -588,6 +663,13 @@ private struct BasicListBottomProbeModifier: ViewModifier {
                         }
                     }
                 }
+                // A pending retry that wakes after the list left the hierarchy
+                // would fire against DEAD geometry (latestProbe is frozen — no
+                // further callbacks ever come). Invalidate the probe on
+                // disappear: the `guard let probe` in every pending retry then
+                // fails and the retry discards itself. Already-dispatched
+                // handler tasks are NOT cancelled — see the onLoadMore doc.
+                .onDisappear { latestProbe = nil }
         } else {
             content
         }

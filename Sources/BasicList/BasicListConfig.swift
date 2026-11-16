@@ -11,6 +11,13 @@ import SwiftUI
 /// The app layer collects the standard values at ONE point (`BasicListConfig.house`)
 /// instead of scattering colors/metrics across call sites — changing the look
 /// of every list in the app means editing exactly that one wiring file.
+///
+/// ## Evolution policy
+/// This struct is the design-wiring point the app touches most often, so it
+/// is also the library's main semver risk: new fields ship ONLY as new `init`
+/// overloads with defaults (the existing init signature never changes) or as
+/// builder methods — never as a change to an existing signature, which would
+/// break every list construction.
 public struct BasicListConfig: Sendable, Equatable {
 
     /// Tint of the swipe action flagged `isDestructive: true` — the dedicated
