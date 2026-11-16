@@ -1,0 +1,29 @@
+# SwiftLint gate — the project's code-standard definition.
+# Philosophy: defaults ON; tuned ONLY where the house style is deliberate
+# (each deviation below carries its reason). CI enforces `swiftlint --strict`.
+excluded:
+  - .build
+  - DerivedData
+  - .swiftpm
+
+# SwiftUI idiom: List Section header/footer, #Preview and ForEach-style calls
+# pass MULTIPLE trailing closures — that's the framework's own pattern, not a
+# violation.
+disabled_rules:
+  - multiple_closures_with_trailing_closure
+
+line_length:
+  warning: 160
+  ignores_comments: true # doc comments are this project's primary spec surface
+
+file_length:
+  warning: 700 # one cohesive engine file + one preview catalog (by design)
+  error: 1000
+
+type_body_length:
+  warning: 300 # LoadMoreSimulatorTests is one serialized measurement suite
+
+identifier_name:
+  min_length: 2 # vm / t0 / s0 / kv / at in the harness are intentional
+  excluded:
+    - id

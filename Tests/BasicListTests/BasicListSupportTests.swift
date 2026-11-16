@@ -20,11 +20,11 @@ struct BasicListConfigTests {
 
     @Test("Equatable — same values are equal, different values differ")
     func equality() {
-        let a = BasicListConfig(destructiveActionTint: .red, bottomClearance: 0)
-        let b = BasicListConfig(destructiveActionTint: .red, bottomClearance: 0)
-        let c = BasicListConfig(destructiveActionTint: .blue, bottomClearance: 0)
-        #expect(a == b)
-        #expect(a != c)
+        let red0 = BasicListConfig(destructiveActionTint: .red, bottomClearance: 0)
+        let red1 = BasicListConfig(destructiveActionTint: .red, bottomClearance: 0)
+        let blue = BasicListConfig(destructiveActionTint: .blue, bottomClearance: 0)
+        #expect(red0 == red1)
+        #expect(red0 != blue)
     }
 }
 

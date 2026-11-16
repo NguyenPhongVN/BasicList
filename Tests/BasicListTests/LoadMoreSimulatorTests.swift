@@ -18,7 +18,7 @@ import Testing
 /// One harness event — structured (time since t0 + text) so timing
 /// assertions read `at` directly instead of parsing formatted log strings.
 @MainActor
-struct LMEvent: Sendable {
+struct LMEvent {
     let at: TimeInterval
     let text: String
 }
@@ -37,11 +37,11 @@ final class GateVM: @unchecked Sendable {
     }
     func dump(_ tag: String) {
         print("LMTEST >>> \(tag): fires=\(fires) loads=\(appended.count) page=\(page) appended=\(appended)")
-        for e in events { print("LMEV >>> [\(String(format: "%.3f", e.at))] \(e.text)") }
+        for event in events { print("LMEV >>> [\(String(format: "%.3f", event.at))] \(event.text)") }
     }
 }
 
-fileprivate struct LRow: Identifiable { let id: Int; var label: String }
+private struct LRow: Identifiable { let id: Int; var label: String }
 
 private struct LoadMoreHarness: View {
     let vm: GateVM
@@ -110,7 +110,7 @@ private struct LoadMoreHarness: View {
 /// drives.
 @MainActor
 @Observable
-fileprivate final class RefreshVM: @unchecked Sendable {
+private final class RefreshVM: @unchecked Sendable {
     let t0 = Date()
     var page = 1
     var lastPage = Int.max
@@ -124,7 +124,7 @@ fileprivate final class RefreshVM: @unchecked Sendable {
     }
     func dump(_ tag: String) {
         print("LMTEST >>> \(tag): fires=\(fires) loads=\(appended.count) page=\(page) appended=\(appended)")
-        for e in events { print("LMEV >>> [\(String(format: "%.3f", e.at))] \(e.text)") }
+        for event in events { print("LMEV >>> [\(String(format: "%.3f", event.at))] \(event.text)") }
     }
     func replaceWithPage1(rows: Int) {
         page = 1
@@ -192,22 +192,24 @@ struct LoadMoreSimulatorTests {
         return window
     }
     private func findScroll(in window: UIWindow?) -> UIScrollView? {
-        func find(_ v: UIView) -> UIScrollView? {
-            if let s = v as? UIScrollView { return s }
-            for c in v.subviews { if let f = find(c) { return f } }
+        func find(_ view: UIView) -> UIScrollView? {
+            if let scroll = view as? UIScrollView { return scroll }
+            for child in view.subviews {
+                if let found = find(child) { return found }
+            }
             return nil
         }
         return window.flatMap(find)
     }
-    private func truth(_ s: UIScrollView) -> String {
-        let rem = s.contentSize.height - s.contentOffset.y - s.bounds.height
+    private func truth(_ scroll: UIScrollView) -> String {
+        let rem = scroll.contentSize.height - scroll.contentOffset.y - scroll.bounds.height
         return String(format: "UK size=%.0f bounds=%.0f offY=%.0f adjTop=%.0f adjBottom=%.0f remUK=%.0f",
-                      s.contentSize.height, s.bounds.height, s.contentOffset.y,
-                      s.adjustedContentInset.top, s.adjustedContentInset.bottom, rem)
+                      scroll.contentSize.height, scroll.bounds.height, scroll.contentOffset.y,
+                      scroll.adjustedContentInset.top, scroll.adjustedContentInset.bottom, rem)
     }
-    private func scrollTo(remUK target: CGFloat, _ s: UIScrollView) {
-        let y = s.contentSize.height - s.bounds.height - target
-        s.setContentOffset(CGPoint(x: 0, y: y), animated: false)
+    private func scrollTo(remUK target: CGFloat, _ scroll: UIScrollView) {
+        let offsetY = scroll.contentSize.height - scroll.bounds.height - target
+        scroll.setContentOffset(CGPoint(x: 0, y: offsetY), animated: false)
     }
     private func step(_ window: UIWindow, rem target: CGFloat) async throws {
         scrollTo(remUK: target, findScroll(in: window)!)
@@ -217,16 +219,16 @@ struct LoadMoreSimulatorTests {
         try await settle(0.05)
     }
 
-    /// NOTE — there is deliberately NO inter-fire time-gap check here.
-    /// The gate enforces ≥ cooldown between `tryFire` SUCCESSES, which are
-    /// not observable from the harness (the gate is engine-internal). Handler
-    /// log timestamps measure TASK SCHEDULING, not gate spacing: this harness
-    /// delays handler tasks by up to ~1.5 s (Docs §6 trap 3 — RunLoop pumps
-    /// don't drain Swift-concurrency continuations), so two gate-legal fires
-    /// can log 312 ms apart. The original gap check was silently vacuous
-    /// anyway — its parser produced no numbers (`Double("0.123|1752…") → nil`)
-    /// and `compactMap` dropped everything. The REAL duplicate pins are the
-    /// exact `appended` sequence assertions in each scenario below.
+    // NOTE — there is deliberately NO inter-fire time-gap check here.
+    // The gate enforces ≥ cooldown between `tryFire` SUCCESSES, which are
+    // not observable from the harness (the gate is engine-internal). Handler
+    // log timestamps measure TASK SCHEDULING, not gate spacing: this harness
+    // delays handler tasks by up to ~1.5 s (Docs §6 trap 3 — RunLoop pumps
+    // don't drain Swift-concurrency continuations), so two gate-legal fires
+    // can log 312 ms apart. The original gap check was silently vacuous
+    // anyway — its parser produced no numbers (`Double("0.123|1752…") → nil`)
+    // and `compactMap` dropped everything. The REAL duplicate pins are the
+    // exact `appended` sequence assertions in each scenario below.
 
     // MARK: scenarios
 
@@ -404,7 +406,7 @@ struct LoadMoreSimulatorTests {
         }
         let parts = last.text.split(separator: " ").reduce(into: [String: Double]()) { acc, pair in
             let kv = pair.split(separator: "=")
-            if kv.count == 2, let v = Double(kv[1]) { acc[String(kv[0])] = v }
+            if kv.count == 2, let value = Double(kv[1]) { acc[String(kv[0])] = value }
         }
         let size = parts["size"] ?? -1
         let visMaxY = parts["visMaxY"] ?? -1

@@ -70,7 +70,7 @@ struct BasicListViewTests {
             },
             BasicListSection(section: "Yesterday", items: [Item(id: 2)], itemID: { $0.id }) {
                 Text("H2")
-            },
+            }
         ]
         let view = BasicListView(sections: sections, config: config) {
             Text("\($0.id)")
@@ -86,7 +86,7 @@ struct BasicListViewTests {
         let sections = [
             BasicListSection(section: 2026, items: [Item(id: 1)], itemID: { $0.id }) {
                 Text("H")
-            },
+            }
         ]
         #expect(sections[0].section == AnyHashable(2026))
         let view = BasicListView(sections: sections, config: config) { Text("\($0.id)") }

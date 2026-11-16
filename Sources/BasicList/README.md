@@ -202,5 +202,7 @@ bare `Text`). Neutral config — the real design values exist only in the app
   private — a handful of stored properties are `package` so the host test suite can
   assert the replace (last-call-wins) and emptiness semantics, still invisible to
   consumers. The app layer imports explicitly with `import BasicList`.
+- **Code standard**: SwiftLint `--strict` is the gate — CI enforces it on every push/PR;
+  `.swiftlint.yml` documents every deviation from defaults with its reason.
 - Data in, events out throughout: the engine keeps no business state, the single data
   source is the array/sections the caller passes in.

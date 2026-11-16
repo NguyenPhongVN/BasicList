@@ -10,14 +10,14 @@ let package = Package(
         .macOS(.v26),
         .tvOS(.v26),
         .watchOS(.v26),
-        .visionOS(.v26),
+        .visionOS(.v26)
     ],
     products: [
         // Products define the executables and libraries a package produces, making them visible to other packages.
         .library(
             name: "BasicList",
             targets: ["BasicList"]
-        ),
+        )
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
@@ -26,19 +26,19 @@ let package = Package(
             name: "BasicList",
             exclude: [
                 // Doc module — not a resource to bundle.
-                "README.md",
+                "README.md"
             ],
             swiftSettings: [
-                .enableUpcomingFeature("ApproachableConcurrency"),
+                .enableUpcomingFeature("ApproachableConcurrency")
             ],
         ),
 
         .testTarget(
             name: "BasicListTests",
             dependencies: [
-                "BasicList",
+                "BasicList"
             ],
-        ),
+        )
 
     ]
 )

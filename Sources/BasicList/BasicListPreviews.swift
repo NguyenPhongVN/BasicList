@@ -67,27 +67,33 @@ private struct PreviewItem: Identifiable {
     let isIncome: Bool
 }
 
+/// One English transaction fixture — a struct with named members instead of a
+/// positional tuple so the fixture table reads at a glance.
+private struct PreviewFixture {
+    let title: String
+    let note: String
+    let symbol: String
+    let amount: Double
+    let isIncome: Bool
+}
+
 /// English transaction fixtures shared by every preview — diverse enough in
 /// glyphs/colors/money that the demo shapes don't look alike. The strings are
 /// preview fixtures, not routed through the app's Localizable tables.
-private let previewFixtures: [
-    (title: String, note: String, symbol: String, amount: Double, isIncome: Bool)
-] = [
-    ("Whole Foods", "Groceries", "cart.fill", 86.40, false),
-    ("Salary", "October payroll", "banknote.fill", 2_400, true),
-    ("Uber", "Commute", "car.fill", 14.20, false),
-    ("Freelance", "Logo project", "laptopcomputer", 350, true),
-    ("Netflix", "Monthly plan", "play.tv.fill", 15.99, false),
-    ("Rent", "Apartment", "house.fill", 780, false),
-    ("Coffee", "Latte, size M", "cup.and.saucer.fill", 4.50, false),
-    ("Dividend", "Quarterly payout", "chart.line.uptrend.xyaxis", 62.30, true),
+private let previewFixtures: [PreviewFixture] = [
+    PreviewFixture(title: "Whole Foods", note: "Groceries", symbol: "cart.fill", amount: 86.40, isIncome: false),
+    PreviewFixture(title: "Salary", note: "October payroll", symbol: "banknote.fill", amount: 2_400, isIncome: true),
+    PreviewFixture(title: "Uber", note: "Commute", symbol: "car.fill", amount: 14.20, isIncome: false),
+    PreviewFixture(title: "Freelance", note: "Logo project", symbol: "laptopcomputer", amount: 350, isIncome: true),
+    PreviewFixture(title: "Netflix", note: "Monthly plan", symbol: "play.tv.fill", amount: 15.99, isIncome: false),
+    PreviewFixture(title: "Rent", note: "Apartment", symbol: "house.fill", amount: 780, isIncome: false),
+    PreviewFixture(title: "Coffee", note: "Latte, size M", symbol: "cup.and.saucer.fill", amount: 4.50, isIncome: false),
+    PreviewFixture(title: "Dividend", note: "Quarterly payout", symbol: "chart.line.uptrend.xyaxis", amount: 62.30, isIncome: true)
 ]
 
-/// Fixture tuple (1-based index, wraps around) — negative or zero indices
+/// Fixture row (1-based index, wraps around) — negative or zero indices
 /// are normalized to 1 so a bad call can't crash on a negative array index.
-private func fixture(
-    at index: Int
-) -> (title: String, note: String, symbol: String, amount: Double, isIncome: Bool) {
+private func fixture(at index: Int) -> PreviewFixture {
     previewFixtures[(max(index, 1) - 1) % previewFixtures.count]
 }
 
@@ -167,9 +173,9 @@ private struct PreviewHeader: View {
     }
 }
 
-/// Previews are built through dedicated structs — complex logic (state
-/// mutations inside closures) crammed straight into a #Preview macro crashes
-/// the type-checker.
+// Previews are built through dedicated structs — complex logic (state
+// mutations inside closures) crammed straight into a #Preview macro crashes
+// the type-checker.
 
 // MARK: 1. BasicListView — the three data-in shapes
 
@@ -270,7 +276,7 @@ private struct SectionedListPreview: View {
     /// `BasicListSection` inits in one list.
     static let sections: [BasicListSection<PreviewItem>] = [
         BasicListSection(section: "Today", items: [
-            fixtureItem(at: 7), fixtureItem(at: 3), fixtureItem(at: 1),
+            fixtureItem(at: 7), fixtureItem(at: 3), fixtureItem(at: 1)
         ], itemID: \.id) {
             sectionHeader("TODAY", count: 3)
         } footer: {
@@ -279,10 +285,10 @@ private struct SectionedListPreview: View {
                 .foregroundStyle(.secondary)
         },
         BasicListSection(section: "Yesterday", items: [
-            fixtureItem(at: 5), fixtureItem(at: 6),
+            fixtureItem(at: 5), fixtureItem(at: 6)
         ], itemID: \.id) {
             sectionHeader("YESTERDAY", count: 2)
-        },
+        }
     ]
 
     var body: some View {
