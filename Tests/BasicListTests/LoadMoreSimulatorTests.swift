@@ -4,7 +4,7 @@ import UIKit
 import Testing
 @testable import BasicList
 
-// MARK: - Load-more simulator tests (Docs/LoadMoreVerification.md §5)
+// MARK: - Load-more simulator tests (Docs/LoadMoreVerification.md §3/§5)
 //
 // Runs ONLY on an iOS simulator host (`xcodebuild test -destination
 // 'platform=iOS Simulator,...'`). On macOS (`swift test`) this file compiles
@@ -277,7 +277,15 @@ struct LoadMoreSimulatorTests {
     func b4() async throws {
         let vm = GateVM()
         vm.lastPage = 30
+        // Pin the exact [2…9] baseline to the pinned device AND runtime
+        // (iPhone 18 Pro Max, iOS 27.0 — measured 2026-11-14): a local runtime
+        // bump changes List estimate drift and would break the pin without
+        // being a regression. Gating on the major OS version makes a bump SKIP
+        // the pin (the design invariants above still assert on every runtime);
+        // re-measure and re-pin both here and Docs §3/§5 after a runtime update.
+        let os = ProcessInfo.processInfo.operatingSystemVersion
         let pinnedDevice = UIDevice.current.name == "iPhone 18 Pro Max"
+            && os.majorVersion == 27
         let window = attach(LoadMoreHarness(vm: vm, initialRows: 45, rowsPerPage: 10,
                                             mode: .pixelThreshold(600)))
         try await drain(3)

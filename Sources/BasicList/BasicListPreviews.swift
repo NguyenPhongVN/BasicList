@@ -1,3 +1,7 @@
+// Preview/demo code ships with the LIBRARY target — wrap the whole file in
+// `#if DEBUG` so consumers never compile the 13 demo shapes + fixtures into
+// their release builds (debug builds keep the full catalog).
+#if DEBUG
 import SwiftUI
 
 // MARK: - BasicList preview catalog
@@ -32,7 +36,8 @@ import SwiftUI
 //   BasicListConfig (tint + bottomClearance)         → previewConfig, visible in
 //                                                       every swipe/spacer demo
 //   BasicListSection (footer / no footer)            → Sectioned
-//   BasicListSwipeAction (destructive / regular)     → Flat / Small list
+//   BasicListSwipeAction (role: .destructive / isDestructive / regular)
+//                                                    → Flat / Small list
 //   BasicListHeaderMode (both cases)                 → Flat + Pinned header
 //   BasicListLoadMoreMode (all three forms)          → Flat / Tight threshold / 4 pages
 //   BasicListSpacer(height:)                         → Self-built List (manual) +
@@ -191,7 +196,7 @@ private struct FlatListPreview: View {
                 .padding(40)
             }
             .rowSwipeActions { _ in
-                [BasicListSwipeAction(title: "Delete", systemImage: "trash", isDestructive: true) {}]
+                [BasicListSwipeAction(title: "Delete", systemImage: "trash", role: .destructive) {}]
             }
             .rowContextMenu { item in
                 Button("Copy \"\(item.title)\"") {}
@@ -674,3 +679,4 @@ private struct SelfBuiltSentinelPreview: View {
 #Preview("Self-built List — sentinel + spacer") {
     SelfBuiltSentinelPreview()
 }
+#endif

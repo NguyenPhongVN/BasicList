@@ -216,3 +216,21 @@ Harness traps worth remembering (each cost a debugging round):
    distance from the bottom ≈ the configured threshold, identical across both screens.
 4. Open a short list (6–8 rows): exactly one log line — no double page load at open.
 5. Scroll to the end of the data: logs stop; standing still fires nothing more.
+
+## 8. Post-review hardening (2026-11-17)
+
+Code-review follow-ups — none change the measured in-region behavior; the simulator
+suite was re-run after the changes (8/8 pass):
+
+| Change | What / why |
+|---|---|
+| Gate time source | `Date()` → `ContinuousClock.now` — the cooldown is elapsed time, immune to wall-clock jumps (NTP sync, user date change). Window semantics identical. |
+| Retry lifecycle | `BasicListBottomProbeModifier` invalidates `latestProbe` on `.onDisappear` — pending retries (blocked fires waiting out the cooldown) discard themselves instead of firing against a dead list's frozen geometry. Already-dispatched handler tasks keep running (VM-owned contract unchanged). |
+| B4 pinned baseline | Gated on device AND major OS version (iPhone 18 Pro Max, iOS 27.0): a runtime bump skips the exact pin instead of failing — the design invariants still assert on every runtime; re-measure + re-pin after a bump. |
+| Previews | `BasicListPreviews.swift` wrapped in `#if DEBUG` — demo code no longer compiles into consumers' release builds (verified: release object 7.9 KB / 0 preview symbols vs debug 805 KB / 84). |
+
+Re-run 2026-11-17, iPhone 17 Pro Test simulator (iOS 26.5): suite **8/8 pass** —
+`FixA` engineDistance == UIKit ground truth (116 == 116), empty list loads `[2]`
+exactly once, refresh epoch `[2, 2]`, exhausted stops clean, idle silent. The
+runtime-dependent chain length behaves as documented in "CI variance" above —
+invariants hold on iOS 26.5.
