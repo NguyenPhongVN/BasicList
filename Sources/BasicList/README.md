@@ -180,6 +180,8 @@ tables in the verification doc.
 - Swipe actions expose `.accessibilityAction(named:)` — the swipe gesture doesn't exist
   for VoiceOver.
 - Sentinel/spacer are hidden from VoiceOver (mechanical virtual rows, not content).
+- These contracts are PINNED by `InteractionSimulatorTests` (a11y tree inspection +
+  activation on a real simulator — CI enables simulator accessibility for the suite).
 
 ## 8. Preview
 
