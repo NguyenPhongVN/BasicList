@@ -57,7 +57,7 @@ jobs:
             swift --version 2>&1
             xcrun simctl list runtimes | grep iOS
             echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+          } | tee -a diagnostics.md
 
       - name: Build (host)
         run: |
@@ -67,7 +67,7 @@ jobs:
               echo '```'
               tail -80 build_err.log
               echo '```'
-            } >> "$GITHUB_STEP_SUMMARY"
+            } | tee -a diagnostics.md
             exit 1
           fi
 
@@ -79,7 +79,7 @@ jobs:
               echo '```'
               tail -80 test_err.log
               echo '```'
-            } >> "$GITHUB_STEP_SUMMARY"
+            } | tee -a diagnostics.md
             exit 1
           fi
 
@@ -124,7 +124,7 @@ jobs:
               echo '```'
               tail -120 xc_loadmore.log
               echo '```'
-            } >> "$GITHUB_STEP_SUMMARY"
+            } | tee -a diagnostics.md
             exit 1
           fi
 
@@ -138,6 +138,23 @@ jobs:
               echo '```'
               tail -120 xc_interaction.log
               echo '```'
-            } >> "$GITHUB_STEP_SUMMARY"
+            } | tee -a diagnostics.md
             exit 1
           fi
+
+      # Diagnostics channel — the job log API needs admin auth and
+      # GITHUB_STEP_SUMMARY is not reflected in the check-run output; artifacts
+      # of a PUBLIC repository are downloadable without credentials, so every
+      # failure tail lands in this bundle.
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-diagnostics
+          path: |
+            diagnostics.md
+            build_err.log
+            test_err.log
+            xc_loadmore.log
+            xc_interaction.log
+          if-no-files-found: ignore
