@@ -24,8 +24,11 @@ import Testing
 //
 // The a11y tree only materializes when an assistive client connects — the
 // harness forces it by posting `.screenChanged`/`.layoutChanged`
-// notifications (what VoiceOver does on focus changes); simulator
-// accessibility defaults are NOT required (verified on a fresh simulator).
+// notifications (what VoiceOver does on focus changes). Runtime-dependent:
+// on iOS 26.5 the notifications ALONE suffice (verified on a fresh
+// simulator); the CI runner's older runtimes (≤26.2) also need the
+// `com.apple.Accessibility` defaults written before launch (see the CI
+// "Enable accessibility on the simulator" step).
 //
 // ⚠️ RUN THIS SUITE SEPARATELY from LoadMoreSimulatorTests (CI does — two
 // sequential xcodebuild invocations). Both suites are @MainActor with

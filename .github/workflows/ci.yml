@@ -70,6 +70,22 @@ jobs:
           echo "Picked simulator: $NAME"
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
 
+      # The interaction suite inspects the a11y tree, which SwiftUI only
+      # materializes when accessibility is enabled. On iOS 26.5+ the harness
+      # notifications alone suffice (verified on a fresh simulator), but the
+      # runner's older runtimes (≤26.2) need the accessibility defaults —
+      # write them before the test run boots the simulator (run #11/#12
+      # evidence: interaction fails on the runner without them, passes with).
+      - name: Enable accessibility on the simulator
+        run: |
+          NAME="${{ steps.sim.outputs.name }}"
+          UDID=$(xcrun simctl list devices | grep "$NAME (" | grep -oE '[A-F0-9]{8}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{12}' | head -1)
+          echo "Enabling accessibility on $NAME ($UDID)"
+          xcrun simctl boot "$UDID" 2>/dev/null || true
+          xcrun simctl spawn "$UDID" defaults write com.apple.Accessibility AccessibilityEnabled -bool YES
+          xcrun simctl spawn "$UDID" defaults write com.apple.Accessibility ApplicationAccessibilityEnabled -bool YES
+          xcrun simctl spawn "$UDID" defaults write com.apple.Accessibility AuditInspectionModeEnabled -bool YES
+
       # The two suites MUST run in SEPARATE xcodebuild invocations: both are
       # @MainActor with blocking RunLoop pumps, and swift-testing serializes
       # WITHIN each suite only — one invocation interleaves their measurement
