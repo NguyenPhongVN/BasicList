@@ -21,15 +21,20 @@ jobs:
         # .swiftlint.yml — the file IS the project's code-standard spec.
         run: swiftlint lint --strict --quiet
 
-  # ONE consolidated heavy job — during the macOS arm64 capacity crunch
-  # (runs #13/#14), queued macos-26 jobs were cancelled after ~15 min
-  # without ever receiving a runner; fewer runner acquisitions = the best
-  # chance to actually execute. Everything runs sequentially on one runner:
-  # host build+tests, then the two simulator suites in SEPARATE xcodebuild
-  # invocations (they are @MainActor with blocking RunLoop pumps and
-  # swift-testing serializes WITHIN each suite only — one invocation
-  # interleaves their measurement windows and perturbs the load-more timing
-  # assertions, run #11).
+  # ONE consolidated heavy job on macos-15 — the macos-26 pool was under a
+  # capacity crunch (runs #13–#15): queued jobs were cancelled after exactly
+  # ~15 min without ever receiving a runner, while tiny jobs got through.
+  # macos-15 is a mature image with the SAME toolchain the work needs
+  # (Xcode 26.3 → Swift 6.3, iOS 26.2 simulator runtime). Everything runs
+  # sequentially on one runner: host build+tests, then the two simulator
+  # suites in SEPARATE xcodebuild invocations (they are @MainActor with
+  # blocking RunLoop pumps and swift-testing serializes WITHIN each suite
+  # only — one invocation interleaves their measurement windows and perturbs
+  # the load-more timing assertions, run #11).
+  #
+  # Diagnostics: every step writes its toolchain evidence / failure tail to
+  # $GITHUB_STEP_SUMMARY — the job log itself needs admin auth to read via
+  # the API, the check-run summary does not.
   test:
     name: Test (host + iOS simulator)
     runs-on: macos-15
@@ -43,26 +48,40 @@ jobs:
         with:
           xcode-version: latest-stable
 
+      - name: Toolchain evidence
+        run: |
+          {
+            echo "### Toolchain"
+            echo '```'
+            xcodebuild -version
+            swift --version 2>&1
+            xcrun simctl list runtimes | grep iOS
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Build (host)
-        run: swift build
+        run: |
+          if ! swift build 2> build_err.log; then
+            {
+              echo "### swift build — FAILED, last 80 lines"
+              echo '```'
+              tail -80 build_err.log
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
 
       - name: Test (host — vocabulary, gate, wiring)
-        run: swift test
-
-      # The interaction suite inspects the a11y tree, which SwiftUI only
-      # materializes when accessibility is enabled. On iOS 26.5+ the harness
-      # notifications alone suffice (verified on a fresh simulator), but the
-      # runner's older runtimes (≤26.2) need the accessibility defaults —
-      # write them before the test run boots the simulator.
-      - name: Enable accessibility on the simulator
         run: |
-          NAME="${{ steps.sim.outputs.name }}"
-          UDID=$(xcrun simctl list devices | grep "$NAME (" | grep -oE '[A-F0-9]{8}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{12}' | head -1)
-          echo "Enabling accessibility on $NAME ($UDID)"
-          xcrun simctl boot "$UDID" 2>/dev/null || true
-          xcrun simctl spawn "$UDID" defaults write com.apple.Accessibility AccessibilityEnabled -bool YES
-          xcrun simctl spawn "$UDID" defaults write com.apple.Accessibility ApplicationAccessibilityEnabled -bool YES
-          xcrun simctl spawn "$UDID" defaults write com.apple.Accessibility AuditInspectionModeEnabled -bool YES
+          if ! swift test 2> test_err.log; then
+            {
+              echo "### swift test — FAILED, last 80 lines"
+              echo '```'
+              tail -80 test_err.log
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
 
       # Pick the simulator AFTER Xcode selection — the image ships different
       # simulator sets per Xcode, and the harness builds its own fixed
@@ -79,8 +98,46 @@ jobs:
           echo "Picked simulator: $NAME"
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
 
+      # The interaction suite inspects the a11y tree, which SwiftUI only
+      # materializes when accessibility is enabled. On iOS 26.5+ the harness
+      # notifications alone suffice (verified on a fresh simulator), but the
+      # runner's older runtimes (≤26.2) need the accessibility defaults —
+      # write them before the test run boots the simulator. AFTER the pick —
+      # it reads the chosen device's name.
+      - name: Enable accessibility on the simulator
+        run: |
+          NAME="${{ steps.sim.outputs.name }}"
+          UDID=$(xcrun simctl list devices | grep "$NAME (" | grep -oE '[A-F0-9]{8}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{12}' | head -1)
+          echo "Enabling accessibility on $NAME ($UDID)"
+          xcrun simctl boot "$UDID" 2>/dev/null || true
+          xcrun simctl spawn "$UDID" defaults write com.apple.Accessibility AccessibilityEnabled -bool YES
+          xcrun simctl spawn "$UDID" defaults write com.apple.Accessibility ApplicationAccessibilityEnabled -bool YES
+          xcrun simctl spawn "$UDID" defaults write com.apple.Accessibility AuditInspectionModeEnabled -bool YES
+
       - name: Test (load-more simulator suite)
-        run: xcodebuild test -scheme BasicList -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" -only-testing:BasicListTests/LoadMoreSimulatorTests
+        run: |
+          if ! xcodebuild test -scheme BasicList \
+               -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
+               -only-testing:BasicListTests/LoadMoreSimulatorTests > xc_loadmore.log 2>&1; then
+            {
+              echo "### LoadMore simulator suite — FAILED, last 120 lines"
+              echo '```'
+              tail -120 xc_loadmore.log
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
 
       - name: Test (interaction simulator suite)
-        run: xcodebuild test -scheme BasicList -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" -only-testing:BasicListTests/InteractionSimulatorTests
+        run: |
+          if ! xcodebuild test -scheme BasicList \
+               -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
+               -only-testing:BasicListTests/InteractionSimulatorTests > xc_interaction.log 2>&1; then
+            {
+              echo "### Interaction simulator suite — FAILED, last 120 lines"
+              echo '```'
+              tail -120 xc_interaction.log
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
