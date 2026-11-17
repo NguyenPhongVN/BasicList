@@ -38,6 +38,10 @@ jobs:
   test:
     name: Test (host + iOS simulator)
     runs-on: macos-15
+    # The failure path commits diagnostics.md (+ raw logs) back to main so
+    # diagnosis works without any repository credentials on the reading side.
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -143,18 +147,14 @@ jobs:
           fi
 
       # Diagnostics channel — the job log API needs admin auth and
-      # GITHUB_STEP_SUMMARY is not reflected in the check-run output; artifacts
-      # of a PUBLIC repository are downloadable without credentials, so every
-      # failure tail lands in this bundle.
-      - name: Upload diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ci-diagnostics
-          path: |
-            diagnostics.md
-            build_err.log
-            test_err.log
-            xc_loadmore.log
-            xc_interaction.log
-          if-no-files-found: ignore
+      # GITHUB_STEP_SUMMARY is not reflected in the check-run output; instead
+      # the failure path commits diagnostics.md (+ raw logs) straight into the
+      # repository ([skip ci] prevents a CI loop).
+      - name: Commit diagnostics
+        if: failure()
+        run: |
+          git config user.name "ci-diagnostics"
+          git config user.email "actions@github.com"
+          git add diagnostics.md build_err.log test_err.log xc_loadmore.log xc_interaction.log || true
+          git commit -m "ci: diagnostics bundle [skip ci]" || true
+          git push || true
