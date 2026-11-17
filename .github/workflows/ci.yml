@@ -70,18 +70,12 @@ jobs:
           echo "Picked simulator: $NAME"
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
 
-      # The interaction suite (InteractionSimulatorTests) inspects the a11y
-      # tree, which SwiftUI only materializes when the SIMULATOR has
-      # accessibility enabled — write the same defaults Accessibility
-      # Inspector flips, before the test run boots and launches the runner.
-      - name: Enable accessibility on the simulator
-        run: |
-          NAME="${{ steps.sim.outputs.name }}"
-          UDID=$(xcrun simctl list devices | grep "$NAME (" | grep -oE '[A-F0-9]{8}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{12}' | head -1)
-          echo "Enabling accessibility on $NAME ($UDID)"
-          xcrun simctl boot "$UDID" 2>/dev/null || true
-          xcrun simctl spawn "$UDID" defaults write com.apple.Accessibility AccessibilityEnabled -bool YES
-          xcrun simctl spawn "$UDID" defaults write com.apple.Accessibility ApplicationAccessibilityEnabled -bool YES
+      # The two suites MUST run in SEPARATE xcodebuild invocations: both are
+      # @MainActor with blocking RunLoop pumps, and swift-testing serializes
+      # WITHIN each suite only — one invocation interleaves their measurement
+      # windows and perturbs the load-more timing assertions (run #11).
+      - name: Test (load-more suite)
+        run: xcodebuild test -scheme BasicList -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" -only-testing:BasicListTests/LoadMoreSimulatorTests
 
-      - name: Test
-        run: xcodebuild test -scheme BasicList -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" -only-testing:BasicListTests/LoadMoreSimulatorTests -only-testing:BasicListTests/InteractionSimulatorTests
+      - name: Test (interaction suite)
+        run: xcodebuild test -scheme BasicList -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" -only-testing:BasicListTests/InteractionSimulatorTests

@@ -22,14 +22,16 @@ import Testing
 //                 (`_UICollectionViewListCellReorderControl`, UIKit-level)
 //   - render    → header / empty-state / footer rows match the data shape
 //
-// The a11y tree only materializes when the SIMULATOR has accessibility
-// enabled (`com.apple.Accessibility` defaults — see the CI step that writes
-// them before this suite runs). Locally:
-//   xcrun simctl boot <UDID>
-//   xcrun simctl spawn <UDID> defaults write com.apple.Accessibility \
-//       AccessibilityEnabled -bool YES
-//   xcrun simctl spawn <UDID> defaults write com.apple.Accessibility \
-//       ApplicationAccessibilityEnabled -bool YES
+// The a11y tree only materializes when an assistive client connects — the
+// harness forces it by posting `.screenChanged`/`.layoutChanged`
+// notifications (what VoiceOver does on focus changes); simulator
+// accessibility defaults are NOT required (verified on a fresh simulator).
+//
+// ⚠️ RUN THIS SUITE SEPARATELY from LoadMoreSimulatorTests (CI does — two
+// sequential xcodebuild invocations). Both suites are @MainActor with
+// blocking RunLoop pumps; swift-testing serializes WITHIN each suite only,
+// so running them in ONE invocation interleaves their measurement windows
+// and perturbs the load-more timing assertions (CI run #11 failure).
 //
 // Same harness discipline as LoadMoreSimulatorTests (§6 of the verification
 // doc): hosted UIWindow kept STRONG, pump-based settling, @Suite(.serialized).
@@ -86,11 +88,14 @@ struct InteractionSimulatorTests {
 
     /// Force the accessibility engine to materialize SwiftUI's a11y tree:
     /// post `.screenChanged` (what VoiceOver does on focus changes) and give
-    /// the tree a beat to rebuild. Inspection only — no behavior change.
+    /// the tree a beat to rebuild. Retried — a cold runner may need several
+    /// rounds before the engine connects. Inspection only — no behavior change.
     private func activateA11y() {
-        UIAccessibility.post(notification: .screenChanged, argument: nil)
-        UIAccessibility.post(notification: .layoutChanged, argument: nil)
-        pump(0.5)
+        for _ in 0..<3 {
+            UIAccessibility.post(notification: .screenChanged, argument: nil)
+            UIAccessibility.post(notification: .layoutChanged, argument: nil)
+            pump(0.4)
+        }
     }
 
     private func a11yElements(in window: UIWindow) -> [NSObject] {
