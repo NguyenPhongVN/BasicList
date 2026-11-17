@@ -23,34 +23,37 @@ jobs:
 
   # ONE consolidated heavy job on macos-15 — the macos-26 pool was under a
   # capacity crunch (runs #13–#15): queued jobs were cancelled after exactly
-  # ~15 min without ever receiving a runner, while tiny jobs got through.
-  # macos-15 is a mature image with the SAME toolchain the work needs
-  # (Xcode 26.3 → Swift 6.3, iOS 26.2 simulator runtime). Everything runs
-  # sequentially on one runner: host build+tests, then the two simulator
-  # suites in SEPARATE xcodebuild invocations (they are @MainActor with
-  # blocking RunLoop pumps and swift-testing serializes WITHIN each suite
-  # only — one invocation interleaves their measurement windows and perturbs
-  # the load-more timing assertions, run #11).
+  # ~15 min without ever receiving a runner. macos-15 is a mature image with
+  # the toolchain the work needs (Xcode 26.3 → Swift 6.3, iOS 26.2 simulator
+  # runtime).
   #
-  # Diagnostics: every step writes its toolchain evidence / failure tail to
-  # $GITHUB_STEP_SUMMARY — the job log itself needs admin auth to read via
-  # the API, the check-run summary does not.
+  # EVERYTHING runs on the iOS SIMULATOR — no macOS-host binaries are built.
+  # Reason: `swift build`/`swift test` failed on the macOS 15.7 host
+  # (runs #16–#19, exit 1 at the first build step) — the one environment
+  # difference from a healthy local run is the host OS being OLDER than the
+  # package's `.macOS(.v26)` deployment target. The host test suites are
+  # platform-agnostic and run fine on the simulator, so the host toolchain
+  # question disappears entirely.
+  #
+  # The three xcodebuild invocations stay SEPARATE: the simulator suites are
+  # @MainActor with blocking RunLoop pumps, and swift-testing serializes
+  # WITHIN each suite only — one invocation interleaves their measurement
+  # windows and perturbs the load-more timing assertions (run #11). The host
+  # suites (deterministic unit tests) are safe to batch together.
   test:
-    name: Test (host + iOS simulator)
+    name: Test (iOS simulator)
     runs-on: macos-15
-    # The failure path commits diagnostics.md (+ raw logs) back to main so
-    # diagnosis works without any repository credentials on the reading side.
+    # The failure path commits diagnostics back to main so diagnosis works
+    # without any repository credentials on the reading side.
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
 
       # PIN the Xcode version — tools 6.3 needs Swift >= 6.3 (Xcode 26.2+).
-      # Do NOT use latest-stable here: the macos-15 image DEFAULTS to Xcode
-      # 16.4 (Swift 6.1), and a resolution fallback to the default fails
-      # `swift build` instantly with "requires Swift 6.3" (run #16+ symptom:
-      # exit 1 on the very first build step). 26.3 is explicitly listed on
-      # the macos-15 image (Xcode_26.3.app, build 17C529).
+      # The macos-15 image DEFAULTS to Xcode 16.4 (Swift 6.1); 26.3 is
+      # explicitly listed on the image (Xcode_26.3.app, build 17C529) and
+      # ships the iOS 26.2 simulator runtime.
       - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
@@ -67,33 +70,8 @@ jobs:
             echo '```'
           } | tee -a diagnostics.md
 
-      - name: Build (host)
-        run: |
-          if ! swift build 2> build_err.log; then
-            {
-              echo "### swift build — FAILED, last 80 lines"
-              echo '```'
-              tail -80 build_err.log
-              echo '```'
-            } | tee -a diagnostics.md
-            exit 1
-          fi
-
-      - name: Test (host — vocabulary, gate, wiring)
-        run: |
-          if ! swift test 2> test_err.log; then
-            {
-              echo "### swift test — FAILED, last 80 lines"
-              echo '```'
-              tail -80 test_err.log
-              echo '```'
-            } | tee -a diagnostics.md
-            exit 1
-          fi
-
-      # Pick the simulator AFTER Xcode selection — the image ships different
-      # simulator sets per Xcode, and the harness builds its own fixed
-      # 390×844 window, so any iPhone model works geometry-wise.
+      # Pick the simulator FIRST — the a11y step below reads the chosen
+      # device's name.
       - name: Pick an available iPhone simulator
         id: sim
         run: |
@@ -108,10 +86,9 @@ jobs:
 
       # The interaction suite inspects the a11y tree, which SwiftUI only
       # materializes when accessibility is enabled. On iOS 26.5+ the harness
-      # notifications alone suffice (verified on a fresh simulator), but the
-      # runner's older runtimes (≤26.2) need the accessibility defaults —
-      # write them before the test run boots the simulator. AFTER the pick —
-      # it reads the chosen device's name.
+      # notifications alone suffice (verified on a fresh simulator), but
+      # older runtimes (≤26.2) need the accessibility defaults — write them
+      # before the test run boots the simulator.
       - name: Enable accessibility on the simulator
         run: |
           NAME="${{ steps.sim.outputs.name }}"
@@ -121,6 +98,27 @@ jobs:
           xcrun simctl spawn "$UDID" defaults write com.apple.Accessibility AccessibilityEnabled -bool YES
           xcrun simctl spawn "$UDID" defaults write com.apple.Accessibility ApplicationAccessibilityEnabled -bool YES
           xcrun simctl spawn "$UDID" defaults write com.apple.Accessibility AuditInspectionModeEnabled -bool YES
+
+      # Host suites (deterministic unit tests — vocabulary, gate, wiring) on
+      # the simulator.
+      - name: Test (host suites on simulator)
+        run: |
+          if ! xcodebuild test -scheme BasicList \
+               -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
+               -only-testing:BasicListTests/BasicListViewTests \
+               -only-testing:BasicListTests/BasicListConfigTests \
+               -only-testing:BasicListTests/BasicListSectionTests \
+               -only-testing:BasicListTests/BasicListSwipeActionTests \
+               -only-testing:BasicListTests/VocabularyTests \
+               -only-testing:BasicListTests/BasicListLoadGateTests > xc_hostsuites.log 2>&1; then
+            {
+              echo "### Host suites — FAILED, last 120 lines"
+              echo '```'
+              tail -120 xc_hostsuites.log
+              echo '```'
+            } | tee -a diagnostics.md
+            exit 1
+          fi
 
       - name: Test (load-more simulator suite)
         run: |
@@ -151,14 +149,14 @@ jobs:
           fi
 
       # Diagnostics channel — the job log API needs admin auth and
-      # GITHUB_STEP_SUMMARY is not reflected in the check-run output; instead
-      # the failure path commits diagnostics.md (+ raw logs) straight into the
+      # GITHUB_STEP_SUMMARY is not reflected in the check-run output; the
+      # failure path commits diagnostics.md (+ raw logs) straight into the
       # repository ([skip ci] prevents a CI loop).
       - name: Commit diagnostics
         if: failure()
         run: |
           git config user.name "ci-diagnostics"
           git config user.email "actions@github.com"
-          git add diagnostics.md build_err.log test_err.log xc_loadmore.log xc_interaction.log || true
+          git add diagnostics.md build_err.log test_err.log xc_hostsuites.log xc_loadmore.log xc_interaction.log || true
           git commit -m "ci: diagnostics bundle [skip ci]" || true
           git push || true
