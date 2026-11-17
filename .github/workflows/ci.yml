@@ -9,7 +9,7 @@ on:
 jobs:
   lint:
     name: SwiftLint (strict)
-    runs-on: macos-26
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
 
@@ -32,7 +32,7 @@ jobs:
   # assertions, run #11).
   test:
     name: Test (host + iOS simulator)
-    runs-on: macos-26
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
 
