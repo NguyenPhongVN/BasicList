@@ -157,6 +157,9 @@ jobs:
         run: |
           git config user.name "ci-diagnostics"
           git config user.email "actions@github.com"
-          git add diagnostics.md build_err.log test_err.log xc_hostsuites.log xc_loadmore.log xc_interaction.log || true
+          # `git add <explicit-paths>` dies when ANY pathspec is missing (the
+          # swift-build logs no longer exist in this job) and `|| true` swallows
+          # it — stage everything present instead.
+          git add -A || true
           git commit -m "ci: diagnostics bundle [skip ci]" || true
           git push || true
