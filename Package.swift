@@ -1,5 +1,11 @@
-// swift-tools-version: 6.3
+// swift-tools-version: 6.2
 // The swift-tools-version declares the minimum version of Swift required to build this package.
+//
+// Pinned to 6.2 — the LOWEST toolchain that must be able to build this
+// package, set by the CI runner image (macos-15's newest Xcode, 26.3, ships
+// Swift 6.2.4): every bump is immediately reverted by CI (6.4 → 6.3 for the
+// macos-26 pool, 6.3 → 6.2 for macos-15). Nothing in the sources needs
+// 6.3-only features; newer toolchains build tools-6.2 packages unchanged.
 
 import PackageDescription
 
