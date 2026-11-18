@@ -98,7 +98,7 @@ would break every list construction.
 | `.onRefresh(_:)` | Pull-to-refresh; errors are swallowed inside the handler (`try?`), the spinner ends by itself |
 | `.onLoadMore(mode:_:)` | Continuous load-more near the bottom — `mode: .pixelThreshold(CGFloat)` (default 600pt) or `mode: .pagesAhead(Int)` (ASDK/IGListKit-style prefetch, region = N × viewport); mutually exclusive by type via `BasicListLoadMoreMode`. Handler is non-throwing — handle errors inside it; an empty list still fires once at attach |
 
-Shared vocabulary (`BasicListSupport.swift`) — usable by both the engine and screens
+Shared vocabulary (`Engine/BasicListSupport.swift`) — usable by both the engine and screens
 that build their own list:
 
 | Type/helper | Meaning |
@@ -197,6 +197,12 @@ handy for `simctl` screenshots and manual testing on the simulator.
 
 ## 9. Module notes
 
+- **File layout** (one module, two layers — folders are organizational only):
+  `Engine/` — the "array in — item out" engine (`BasicListView`, the bare
+  `BasicPlainList`, `BasicListConfig`) and its shared vocabulary
+  (`BasicListSupport`); `Page/` — the page scaffold around the engine
+  (`BasicListPage`, `BasicListPageConfig`). The page forwards the engine's
+  surface, so the vocabulary stays engine-side.
 - Standalone package, product `BasicList`. `public` API is exactly what callers need
   (types + inits + modifiers); engine internals (probe, swipe rendering, Row/Group) stay
   private — a handful of stored properties are `package` so the host test suite can
