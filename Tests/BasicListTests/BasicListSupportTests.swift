@@ -7,7 +7,7 @@ import Testing
 // The testable parts are pure value/mapping behavior: config, section identity +
 // itemID mapping, optional footer, swipe action, spacer, sentinel,
 // header mode. Rendering parts (probe geometry, sticky headers, swipe animation)
-// belong to previews — host tests can't build a List.
+// belong to the Examples app — host tests can't build a List.
 
 struct BasicListConfigTests {
 

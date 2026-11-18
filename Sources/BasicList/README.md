@@ -183,19 +183,17 @@ tables in the verification doc.
 - These contracts are PINNED by `InteractionSimulatorTests` (a11y tree inspection +
   activation on a real simulator — CI enables simulator accessibility for the suite).
 
-## 8. Preview
+## 8. Demos — the Examples app
 
-13 live demo shapes in `Sources/BasicList/BasicListPreviews.swift` — a catalog
-covering EVERY public API (one preview per capability, coverage matrix at the top
-of the file): the three data-in shapes (flat / non-Identifiable / sectioned),
-both header modes, empty state (at launch + after removing rows), footer, swipe
-on both edges, context menu, row tap, reorder + editMode (iOS), pull-to-refresh
-(slow / error-in-handler), all three load-more modes (`.pixelDefault`,
-`.pixelThreshold(150)`, `.pagesAhead(2)`), `BasicPlainList`, and the
-self-built-list vocabulary (`BasicListScrollSentinel` + `BasicListSpacer` +
-`.basicListRowStyle()`). Each row has its own look (colored glyph + money, not a
-bare `Text`). Neutral config — the real design values exist only in the app
-(`BasicListConfig.house`).
+The live demos live in the `Examples/` app at the repo root (open
+`SC.xcworkspace`) — the package ships no preview catalog. The hub lists one
+demo per layer: flat page (search · slots · swipe BOTH edges · context menu ·
+refresh · load-more), sectioned page (sticky headers + group footers with
+totals), date pager (previous/next period with the `.basicPageContentKey`
+slide, forward bound at the current month) and the empty state
+(config-driven default, real add via the trailing slot). Launch arguments
+(`-flat` / `-sectioned` / `-datePager` / `-empty`) jump straight to one demo —
+handy for `simctl` screenshots and manual testing on the simulator.
 
 ## 9. Module notes
 

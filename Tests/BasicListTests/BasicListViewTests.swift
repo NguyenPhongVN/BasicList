@@ -7,7 +7,7 @@ import Testing
 // Host tests can't render a List — this suite's scope: every init +
 // modifier COMBINES with all the others, chaining returns Self without
 // breaking generics, and the body builds (the view tree is evaluated, not
-// rendered). Render behavior belongs to the previews.
+// rendered). Render behavior belongs to the Examples app.
 
 @MainActor
 struct BasicListViewTests {

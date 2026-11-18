@@ -9,7 +9,7 @@ import Testing
 // passthrough (emptiness rule per shape), and the forwarding semantics of
 // the basicPage* modifiers onto the inner BasicListView (replace semantics
 // per the engine's last-call-wins). Rendering parts (chrome layout, search
-// pill, loading row) belong to previews — host tests can't build a page.
+// pill, loading row) belong to the Examples app — host tests can't build a page.
 
 struct BasicListPageConfigTests {
 
