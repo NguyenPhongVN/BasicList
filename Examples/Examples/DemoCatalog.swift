@@ -30,10 +30,13 @@ enum DemoTheme {
         emptyIconColor: .secondary,
         progressTint: .blue,
         destructiveActionTint: .red,
-        bottomClearance: 0,
-        pagerChevronColor: .primary,
-        pagerTextColor: .primary,
-        pagerTextFont: .system(.title3, design: .rounded).weight(.bold))
+        bottomClearance: 0)
+
+    /// The app-side date pager's look (the pager is app chrome —
+    /// `BasicListDatePager.swift` — mounted into `.basicPageBottomBar`).
+    static let pagerChevronColor = Color.primary
+    static let pagerTextColor = Color.primary
+    static let pagerTextFont = Font.system(.title3, design: .rounded).weight(.bold)
 
     /// Engine-level config for screens that mount `BasicListView` directly
     /// (the hub). Pushed pages cover the bottom — no tab bar clearance.

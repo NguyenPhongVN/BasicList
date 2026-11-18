@@ -66,11 +66,19 @@ struct DatePagerPageDemo: View {
         .basicPageContentKey(windowStart, transition: .asymmetric(
             insertion: .move(edge: pageForward ? .trailing : .leading),
             removal: .move(edge: pageForward ? .leading : .trailing)))
-        .basicPageDatePager(
-            text: windowText,
-            windowStart: $windowStart,
-            anchor: Self.anchor,
-            unit: .month,
-            onNavigate: { forward in pageForward = forward })
+        // The pager is APP chrome (this file's sibling `BasicListDatePager`,
+        // the BudgetStepperView pattern) — the page only provides the
+        // below-list slot via `.basicPageBottomBar`.
+        .basicPageBottomBar {
+            BasicListDatePager(
+                text: windowText,
+                windowStart: $windowStart,
+                anchor: Self.anchor,
+                unit: .month,
+                onNavigate: { forward in pageForward = forward },
+                chevronColor: DemoTheme.pagerChevronColor,
+                textColor: DemoTheme.pagerTextColor,
+                textFont: DemoTheme.pagerTextFont)
+        }
     }
 }

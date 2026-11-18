@@ -9,7 +9,8 @@ import Testing
 // passthrough (emptiness rule per shape), and the forwarding semantics of
 // the basicPage* modifiers onto the inner BasicListView (replace semantics
 // per the engine's last-call-wins). Rendering parts (chrome layout, search
-// pill, loading row) belong to the Examples app — host tests can't build a page.
+// pill, loading row) belong to the Examples app — host tests can't build a
+// page.
 
 struct BasicListPageConfigTests {
 
@@ -30,10 +31,7 @@ struct BasicListPageConfigTests {
             emptyIconColor: .orange,
             progressTint: .green,
             destructiveActionTint: .red,
-            bottomClearance: 60,
-            pagerChevronColor: .primary,
-            pagerTextColor: .primary,
-            pagerTextFont: .title3)
+            bottomClearance: 60)
         #expect(config.titleColor == .primary)
         #expect(config.titleFont == .title2)
         #expect(config.subtitleColor == .secondary)
@@ -67,10 +65,7 @@ struct BasicListPageConfigTests {
             emptyIconColor: .orange,
             progressTint: .green,
             destructiveActionTint: .red,
-            bottomClearance: 60,
-            pagerChevronColor: .primary,
-            pagerTextColor: .primary,
-            pagerTextFont: .title3)
+            bottomClearance: 60)
         #expect(config.emptyMessage == nil)
     }
 
@@ -90,10 +85,7 @@ struct BasicListPageConfigTests {
             emptyIconColor: .orange,
             progressTint: .green,
             destructiveActionTint: .red,
-            bottomClearance: 80,
-            pagerChevronColor: .primary,
-            pagerTextColor: .primary,
-            pagerTextFont: .title3)
+            bottomClearance: 80)
         #expect(config.listConfig.destructiveActionTint == .red)
         #expect(config.listConfig.bottomClearance == 80)
     }
@@ -115,10 +107,7 @@ struct BasicListPageConfigTests {
                 emptyIconColor: .orange,
                 progressTint: .green,
                 destructiveActionTint: tint,
-                bottomClearance: 60,
-                pagerChevronColor: .primary,
-                pagerTextColor: .primary,
-                pagerTextFont: .title3)
+                bottomClearance: 60)
         }
         #expect(config(tint: .red) == config(tint: .red))
         #expect(config(tint: .red) != config(tint: .blue))
@@ -147,10 +136,7 @@ struct BasicListPageTests {
         emptyIconColor: .orange,
         progressTint: .green,
         destructiveActionTint: .red,
-        bottomClearance: 60,
-        pagerChevronColor: .primary,
-        pagerTextColor: .primary,
-        pagerTextFont: .title3)
+        bottomClearance: 60)
 
     @Test("Init stores title + subtitle and wires the page config")
     func initWiring() {
@@ -167,6 +153,9 @@ struct BasicListPageTests {
         #expect(page.searchBinding == nil)
         #expect(page.searchPrompt == nil)
         #expect(page.isLoading == false)
+        #expect(page.bottomBarBuilder == nil)
+        #expect(page.contentKey == nil)
+        #expect(page.contentTransition == nil)
     }
 
     @Test("Flat shape passthrough — the emptiness rule follows the items")
@@ -293,157 +282,21 @@ struct BasicListPageTests {
         #expect(page.trailingSlot != nil)
     }
 
-    // NOTE: `.basicPageRowTap` / `.basicPageMoveRows` / `.basicPageRefresh`
-    // / `.basicPageRowContextMenu` forward onto engine fields that are
-    // `private` in BasicListView (rowTapHandler, onMoveHandler,
-    // onRefreshHandler, rowContextMenuHandler) — not observable from the
-    // host suite without touching the engine file. Their forwarding is
-    // compile-checked by the calls themselves; the replace-semantics
-    // pattern is pinned on the fields the engine DOES expose
-    // (headerMode / loadMoreMode / swipe handlers above).
-}
-
-// MARK: - BasicListDatePager — stepping math + page wiring
-//
-// The pager is the page's period-paging row (the app's BudgetDetail stepper
-// pattern): one tap = one `BasicListPeriodUnit`, forward stops at the
-// anchor. The testable parts are the pure stepping math (day/week direct,
-// month/year re-derived from the anchor against calendar-clamp drift) and
-// the wiring through `.basicPageDatePager`. Construction of view values is
-// a main-actor operation at runtime (same rule as `BasicListPageTests`).
-
-@MainActor
-struct BasicListDatePagerTests {
-
-    private struct Item: Identifiable { let id: Int }
-
-    private let pageConfig = BasicListPageConfig(
-        titleColor: .primary,
-        titleFont: .title2,
-        subtitleColor: .secondary,
-        subtitleFont: .footnote,
-        backgroundColor: .blue,
-        headerListSpacing: 12,
-        searchBackground: .gray,
-        searchForeground: .white,
-        emptyIcon: "tray",
-        emptyTitle: "Empty",
-        emptyIconColor: .orange,
-        progressTint: .green,
-        destructiveActionTint: .red,
-        bottomClearance: 60,
-        pagerChevronColor: .primary,
-        pagerTextColor: .primary,
-        pagerTextFont: .title3)
-
-    /// Midnight-local date — same builder the stepper math starts from.
-    private func date(_ year: Int, _ month: Int, _ day: Int) -> Date {
-        Calendar.current.date(from: DateComponents(year: year, month: month, day: day))!
-    }
-
-    @Test("Day stepping — ±1 unit is exactly ±1 day")
-    func dayStepping() {
-        let start = date(2026, 10, 15)
-        #expect(BasicListDatePager.step(start, by: 1, anchor: start, unit: .day) == date(2026, 10, 16))
-        #expect(BasicListDatePager.step(start, by: -1, anchor: start, unit: .day) == date(2026, 10, 14))
-    }
-
-    @Test("Week stepping — one unit is exactly 7 days")
-    func weekStepping() {
-        let start = date(2026, 10, 15)
-        #expect(BasicListDatePager.step(start, by: 1, anchor: start, unit: .week) == date(2026, 10, 22))
-        #expect(BasicListDatePager.step(start, by: -1, anchor: start, unit: .week) == date(2026, 10, 8))
-    }
-
-    @Test("Month stepping re-derives from the anchor — clamp never accumulates")
-    func monthSteppingResistsAnchorDrift() {
-        // Anchor on the 31st: +1 clamps to Feb 28…
-        let anchor = date(2026, 1, 31)
-        let stepped = BasicListDatePager.step(anchor, by: 1, anchor: anchor, unit: .month)
-        #expect(stepped == date(2026, 2, 28))
-        // …and stepping BACK from the clamped page must land on Jan 31 —
-        // compounding from Feb 28 would drift to Jan 28 and lose the page.
-        let back = BasicListDatePager.step(stepped, by: -1, anchor: anchor, unit: .month)
-        #expect(back == date(2026, 1, 31))
-        // Forward from a history page keeps the anchor's day-of-month:
-        // Feb 28 + 1 = Mar 31, not Mar 28.
-        let forwardAgain = BasicListDatePager.step(stepped, by: 1, anchor: anchor, unit: .month)
-        #expect(forwardAgain == date(2026, 3, 31))
-    }
-
-    @Test("Year stepping — re-derived from the anchor like month")
-    func yearStepping() {
-        let anchor = date(2026, 1, 1)
-        #expect(BasicListDatePager.step(anchor, by: -1, anchor: anchor, unit: .year) == date(2025, 1, 1))
-        #expect(BasicListDatePager.step(anchor, by: 1, anchor: anchor, unit: .year) == date(2027, 1, 1))
-    }
-
-    @Test("Forward disabled exactly at the anchor — back never disabled")
-    func forwardDisabledAtAnchorOnly() {
-        let anchor = date(2026, 11, 1)
-        let history = date(2026, 10, 1)
-        let bound = BasicListDatePager(
-            text: "Nov 1 - Nov 30",
-            windowStart: .constant(anchor),
-            anchor: anchor,
-            unit: .month,
-            chevronColor: .primary,
-            textColor: .primary,
-            textFont: .title3)
-        let behind = BasicListDatePager(
-            text: "Oct 1 - Oct 31",
-            windowStart: .constant(history),
-            anchor: anchor,
-            unit: .month,
-            chevronColor: .primary,
-            textColor: .primary,
-            textFont: .title3)
-        #expect(bound.isForwardDisabled == true)
-        #expect(behind.isForwardDisabled == false)
-    }
-
-    @Test("basicPageDatePager stores the spec verbatim — text, unit, binding, anchor")
-    func pageStoresPagerSpec() throws {
-        let anchor = date(2026, 11, 1)
-        let windowStart = date(2026, 10, 1)
-        var navigations: [Bool] = []
-        let page = BasicListPage(
+    @Test("basicPageBottomBar stores the slot — last call wins")
+    func bottomBarForwarding() {
+        var page = BasicListPage(
             title: "T", items: [Item(id: 1)],
             config: pageConfig) { _ in Text("Row") }
-            .basicPageDatePager(
-                text: "Oct 1 - Oct 31",
-                windowStart: Binding(
-                    get: { windowStart },
-                    set: { _ = $0 }),
-                anchor: anchor,
-                unit: .month,
-                onNavigate: { navigations.append($0) })
+        #expect(page.bottomBarBuilder == nil)
 
-        let spec = try #require(page.datePagerSpec)
-        #expect(spec.text == "Oct 1 - Oct 31")
-        #expect(spec.anchor == anchor)
-        #expect(spec.unit == .month)
-        #expect(spec.windowStart.wrappedValue == windowStart)
-        #expect(spec.onNavigate != nil)
-
-        // The wiring reaches a pager value with the config's look — the
-        // bound derivation follows the spec's window vs anchor.
-        let pager = BasicListDatePager(
-            text: spec.text,
-            windowStart: spec.windowStart,
-            anchor: spec.anchor,
-            unit: spec.unit,
-            onNavigate: spec.onNavigate,
-            chevronColor: pageConfig.pagerChevronColor,
-            textColor: pageConfig.pagerTextColor,
-            textFont: pageConfig.pagerTextFont)
-        #expect(pager.isForwardDisabled == false)
+        page = page.basicPageBottomBar { Text("Bottom bar") }
+        #expect(page.bottomBarBuilder != nil)
     }
 
     @Test("basicPageContentKey stores the key + transition for the content flip")
     func contentKeyForwarding() {
-        let anchor = date(2026, 11, 1)
-        let windowStart = date(2026, 10, 1)
+        let windowStart = Date(timeIntervalSince1970: 1_760_000_000)
+        let anchor = Date(timeIntervalSince1970: 1_760_086_400)
         var page = BasicListPage(
             title: "T", items: [Item(id: 1)],
             config: pageConfig) { _ in Text("Row") }
@@ -462,4 +315,13 @@ struct BasicListDatePagerTests {
         #expect(page.contentKey == AnyHashable(anchor))
         #expect(page.contentTransition == nil)
     }
+
+    // NOTE: `.basicPageRowTap` / `.basicPageMoveRows` / `.basicPageRefresh`
+    // / `.basicPageRowContextMenu` forward onto engine fields that are
+    // `private` in BasicListView (rowTapHandler, onMoveHandler,
+    // onRefreshHandler, rowContextMenuHandler) — not observable from the
+    // host suite without touching the engine file. Their forwarding is
+    // compile-checked by the calls themselves; the replace-semantics
+    // pattern is pinned on the fields the engine DOES expose
+    // (headerMode / loadMoreMode / swipe handlers above).
 }

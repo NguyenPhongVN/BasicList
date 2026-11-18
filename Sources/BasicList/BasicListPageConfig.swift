@@ -94,16 +94,6 @@ public struct BasicListPageConfig: Sendable, Equatable {
     /// tab-bar clearance of the list inside the page.
     package let bottomClearance: CGFloat
 
-    // MARK: Date pager (only rendered when `.basicPageDatePager` is attached)
-
-    /// Tint of the pager's chevron glyphs.
-    package let pagerChevronColor: Color
-    /// Color of the window label between the chevrons.
-    package let pagerTextColor: Color
-    /// Font of the window label — a font IS design, it comes in like the
-    /// colors do.
-    package let pagerTextFont: Font
-
     /// `emptyMessage` defaults to `nil` (no message row) — every color/metric
     /// stays explicit: no default injects a design value.
     public init(
@@ -121,10 +111,7 @@ public struct BasicListPageConfig: Sendable, Equatable {
         emptyIconColor: Color,
         progressTint: Color,
         destructiveActionTint: Color,
-        bottomClearance: CGFloat,
-        pagerChevronColor: Color,
-        pagerTextColor: Color,
-        pagerTextFont: Font
+        bottomClearance: CGFloat
     ) {
         self.titleColor = titleColor
         self.titleFont = titleFont
@@ -141,9 +128,6 @@ public struct BasicListPageConfig: Sendable, Equatable {
         self.progressTint = progressTint
         self.destructiveActionTint = destructiveActionTint
         self.bottomClearance = bottomClearance
-        self.pagerChevronColor = pagerChevronColor
-        self.pagerTextColor = pagerTextColor
-        self.pagerTextFont = pagerTextFont
     }
 
     /// The inner list's config, derived from the two forwarded fields at

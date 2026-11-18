@@ -67,9 +67,9 @@ import SwiftUI
 ///
 /// Page chrome beyond the table: `.basicPageLeading`, `.basicPageTrailing`,
 /// `.basicPageSearch(_:prompt:)`, `.basicPageIsLoading(_:)` and
-/// `.basicPageDatePager(text:windowStart:anchor:unit:onNavigate:)` mount
-/// the page's own chrome pieces (slots, inline search, loading row, the
-/// below-list date pager).
+/// `.basicPageBottomBar(_:)` mount the page's own chrome pieces (slots,
+/// inline search, loading row, the below-list bottom bar — where an app
+/// mounts its own components, e.g. a period stepper).
 ///
 /// Accessibility: the title carries the heading trait (VoiceOver rotor
 /// navigation), the search field reads its prompt, the loading row is a
@@ -110,10 +110,11 @@ public struct BasicListPage<Item, Content: View>: View {
     /// Loading row above the list — caller-owned flag; the list is never
     /// swapped out for a spinner (identity stays stable).
     package var isLoading: Bool = false
-    /// Date pager below the list — `nil` renders no pager; when present,
-    /// the window label/binding/anchor/unit are all caller inputs (see
-    /// `BasicListDatePager` — the pager owns only the mechanical stepping).
-    package var datePagerSpec: BasicListPageDatePagerSpec?
+    /// Bottom bar BELOW the list — `nil` renders nothing; when present, the
+    /// builder mounts the caller's own component (a period stepper, a
+    /// legend, a toolbar). The page ships the SLOT, never the component —
+    /// what lives there is app chrome, not list vocabulary.
+    package var bottomBarBuilder: (() -> AnyView)?
     /// Content identity key of the list — when set, the inner list is
     /// rebuilt under a NEW identity whenever the key changes, so the
     /// attached transition animates the flip (the date-paging pattern:
@@ -142,7 +143,7 @@ public struct BasicListPage<Item, Content: View>: View {
         self.searchBinding = nil
         self.searchPrompt = nil
         self.isLoading = false
-        self.datePagerSpec = nil
+        self.bottomBarBuilder = nil
         self.contentKey = nil
         self.contentTransition = nil
         self.innerList = BasicListView(items: items, config: config.listConfig, content: content)
@@ -169,7 +170,7 @@ public struct BasicListPage<Item, Content: View>: View {
         self.searchBinding = nil
         self.searchPrompt = nil
         self.isLoading = false
-        self.datePagerSpec = nil
+        self.bottomBarBuilder = nil
         self.contentKey = nil
         self.contentTransition = nil
         self.innerList = BasicListView(
@@ -195,7 +196,7 @@ public struct BasicListPage<Item, Content: View>: View {
         self.searchBinding = nil
         self.searchPrompt = nil
         self.isLoading = false
-        self.datePagerSpec = nil
+        self.bottomBarBuilder = nil
         self.contentKey = nil
         self.contentTransition = nil
         self.innerList = BasicListView(sections: sections, config: config.listConfig, content: content)
@@ -260,34 +261,16 @@ public struct BasicListPage<Item, Content: View>: View {
         return copy
     }
 
-    /// Date pager below the list — `‹ previous — window label — next ›`,
-    /// the period-paging row of time-windowed pages (the BudgetDetail
-    /// stepper pattern, genericized in `BasicListDatePager`). One tap steps
-    /// `windowStart` by one `unit`; forward stops at `anchor` (the newest
-    /// page), back is always available.
-    ///
-    /// The caller owns the wording and the format: `text` is the window
-    /// label, re-computed per body pass from `windowStart` with the
-    /// caller's own date formatter — the package never formats dates.
-    /// `onNavigate` reports the flip direction (`true` = next date) so the
-    /// caller can pick the slide direction for
-    /// `.basicPageContentKey(_:transition:)` — pair the two for the full
-    /// page-flip effect. Colors/font come from `BasicListPageConfig`
-    /// (`pager*` fields).
-    public func basicPageDatePager(
-        text: String,
-        windowStart: Binding<Date>,
-        anchor: Date,
-        unit: BasicListPeriodUnit,
-        onNavigate: ((Bool) -> Void)? = nil
+    /// Bottom bar BELOW the list — a fixed chrome row the list never
+    /// covers. The page ships the SLOT, never the component: what mounts
+    /// there is app chrome (a period stepper, a legend, a toolbar) built by
+    /// the caller, with the caller's look. Calling again replaces the bar
+    /// (the last call wins).
+    public func basicPageBottomBar(
+        @ViewBuilder _ builder: @escaping () -> some View
     ) -> Self {
         var copy = self
-        copy.datePagerSpec = BasicListPageDatePagerSpec(
-            text: text,
-            windowStart: windowStart,
-            anchor: anchor,
-            unit: unit,
-            onNavigate: onNavigate)
+        copy.bottomBarBuilder = { AnyView(builder()) }
         return copy
     }
 
@@ -303,11 +286,11 @@ public struct BasicListPage<Item, Content: View>: View {
     ///     removal: .move(edge: pageForward ? .leading : .trailing)))
     /// ```
     ///
-    /// The pager's `withAnimation` spring (`.basicPageDatePager`) is the
-    /// animation that drives it. A key change also RESETS the list's
-    /// internal state (scroll position, load-more gate) — exactly what a
-    /// new page wants. Without the modifier the list keeps one identity for
-    /// the page's lifetime.
+    /// The animation in flight (a `withAnimation` on the caller's side —
+    /// e.g. inside a bottom-bar stepper) drives the transition. A key
+    /// change also RESETS the list's internal state (scroll position,
+    /// load-more gate) — exactly what a new page wants. Without the
+    /// modifier the list keeps one identity for the page's lifetime.
     public func basicPageContentKey(
         _ id: some Hashable,
         transition: AnyTransition? = nil
@@ -449,19 +432,11 @@ public struct BasicListPage<Item, Content: View>: View {
             innerList
                 .basicPageKeyedContent(key: contentKey, transition: contentTransition)
                 .padding(.top, config.headerListSpacing)
-            if let datePagerSpec {
-                // BELOW the list — the BudgetDetail placement: content
-                // scrolls above the pager, the pager never leaves the
-                // screen. The look comes from the config (`pager*` fields).
-                BasicListDatePager(
-                    text: datePagerSpec.text,
-                    windowStart: datePagerSpec.windowStart,
-                    anchor: datePagerSpec.anchor,
-                    unit: datePagerSpec.unit,
-                    onNavigate: datePagerSpec.onNavigate,
-                    chevronColor: config.pagerChevronColor,
-                    textColor: config.pagerTextColor,
-                    textFont: config.pagerTextFont)
+            if let bottomBarBuilder {
+                // BELOW the list — fixed chrome the list never covers; the
+                // component is caller-built (app chrome, not list
+                // vocabulary), the page only provides the slot.
+                bottomBarBuilder()
             }
         }
         .background(config.backgroundColor)
@@ -590,17 +565,4 @@ private struct BasicListPageDefaultEmptyState: View {
         .padding(40)
         .frame(maxWidth: .infinity)
     }
-}
-
-/// Caller inputs of the page's date pager, stored verbatim by
-/// `.basicPageDatePager` and unpacked into `BasicListDatePager` at render —
-/// `package` so the host tests can pin the wiring (binding, anchor, unit,
-/// direction callback). The pager owns the stepping; this struct owns
-/// nothing.
-package struct BasicListPageDatePagerSpec {
-    package let text: String
-    package let windowStart: Binding<Date>
-    package let anchor: Date
-    package let unit: BasicListPeriodUnit
-    package let onNavigate: ((Bool) -> Void)?
 }
