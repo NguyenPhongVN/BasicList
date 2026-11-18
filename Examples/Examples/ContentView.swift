@@ -5,10 +5,14 @@ import BasicList
 //
 // The hub list is a `BasicListView` (the engine, dogfooded): rows via
 // `onRowTap` → programmatic navigation, not NavigationLink — the same
-// "data in, events out" contract the demos teach.
+// "data in, events out" contract the demos teach. Appearance follows the
+// system; the toolbar toggle overrides it for side-by-side light/dark
+// testing.
 
 struct ContentView: View {
     @State private var path: [DemoKind] = []
+    /// `nil` = follow the system; the toolbar button cycles nil → light → dark.
+    @State private var schemePreference: ColorScheme?
 
     init() {
         // Demo launch routing — `simctl launch ... Examples -datePager`
@@ -32,27 +36,62 @@ struct ContentView: View {
                 HubRowView(entry: entry)
             }
             .basicListHeader {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("BasicList Examples")
-                        .font(.system(.title, design: .rounded).weight(.bold))
-                    Text("Every demo exercises one layer of the package — page scaffold, engine, date pager.")
-                        .font(.system(.footnote, design: .rounded))
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                HubHeaderView()
+            }
+            .basicListFooter {
+                Text("Built with BasicList — every screen here is the package's own API")
+                    .font(.system(.caption2, design: .rounded))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
             }
             .onRowTap { path.append($0) }
             .background(DemoTheme.canvas)
             .navigationTitle("Examples")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        // nil → light → dark → nil
+                        switch schemePreference {
+                        case nil: schemePreference = .light
+                        case .light: schemePreference = .dark
+                        default: schemePreference = nil
+                        }
+                    } label: {
+                        switch schemePreference {
+                        case .light: Image(systemName: "sun.max.fill")
+                        case .dark: Image(systemName: "moon.fill")
+                        default: Image(systemName: "circle.lefthalf.filled")
+                        }
+                    }
+                    .accessibilityLabel("Appearance")
+                }
+            }
             .navigationDestination(for: DemoKind.self) { $0.destination }
         }
+        .preferredColorScheme(schemePreference)
+    }
+}
+
+/// Hub header — what this catalog is, in two lines.
+private struct HubHeaderView: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("BasicList Examples")
+                .font(.system(.title, design: .rounded).weight(.bold))
+            Text("Every demo exercises one layer of the package — page scaffold, engine, date pager.")
+                .font(.system(.footnote, design: .rounded))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
 /// Hub row — same render language as the demo rows (glyph + title + note),
-/// full-area tap comes from the engine's `onRowTap` + VoiceOver button trait.
+/// drawn as a card on the canvas; full-area tap comes from the engine's
+/// `onRowTap` + VoiceOver button trait.
 private struct HubRowView: View {
     let entry: DemoKind
 
@@ -77,7 +116,10 @@ private struct HubRowView: View {
                 .foregroundStyle(.tertiary)
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 16)
+        .padding(.vertical, 14)
+        .background(DemoTheme.rowCard, in: RoundedRectangle(cornerRadius: 14))
+        .padding(.horizontal, 8)
+        .padding(.vertical, 3)
         .basicListRowStyle()
     }
 }

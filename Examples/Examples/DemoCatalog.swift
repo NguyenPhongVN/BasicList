@@ -8,11 +8,18 @@ import BasicList
 // data and the row. Mirrors the package's philosophy on the app side —
 // colors/metrics live HERE, not in the demo screens.
 
-/// The demo look — one place to change everything.
+/// The demo look — one place to change everything. Colors come from the
+/// asset catalog (`Demo*.colorset` with light + dark variants) so the demos
+/// follow the system appearance like a real app would.
 enum DemoTheme {
 
     /// The canvas both the hub and every demo page pour behind themselves.
-    static let canvas = Color(white: 0.96)
+    static let canvas = Color("DemoCanvas")
+    /// Fill of the search field pill and the row cards.
+    static let searchField = Color("DemoSearchField")
+    /// Card surface of one demo/hub row (the grouped-list look: rows are
+    /// cards floating on the canvas, light white / dark elevated).
+    static let rowCard = Color("DemoRowCard")
 
     /// Page-level config for every `BasicListPage` demo.
     static let page = BasicListPageConfig(
@@ -22,7 +29,7 @@ enum DemoTheme {
         subtitleFont: .system(.footnote, design: .rounded),
         backgroundColor: canvas,
         headerListSpacing: 8,
-        searchBackground: Color(white: 0.92),
+        searchBackground: searchField,
         searchForeground: .primary,
         emptyIcon: "tray",
         emptyTitle: "Nothing here yet",
@@ -86,8 +93,9 @@ func demoAmount(_ item: DemoItem) -> String {
     String(format: item.isIncome ? "+$%.2f" : "−$%.2f", item.amount)
 }
 
-/// The demo row — glyph + title + note + money; the cell applies
-/// `.basicListRowStyle()` ITSELF (the engine never re-styles caller content).
+/// The demo row — glyph + title + note + money, drawn as a CARD floating on
+/// the canvas (the grouped-list look); the cell applies `.basicListRowStyle()`
+/// ITSELF (the engine never re-styles caller content).
 struct DemoRowView: View {
     let item: DemoItem
 
@@ -119,7 +127,10 @@ struct DemoRowView: View {
                 .foregroundStyle(item.isIncome ? Color.green : Color.primary)
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 16)
+        .padding(.vertical, 14)
+        .background(DemoTheme.rowCard, in: RoundedRectangle(cornerRadius: 14))
+        .padding(.horizontal, 8)
+        .padding(.vertical, 3)
         .basicListRowStyle()
     }
 }
