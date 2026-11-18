@@ -5,14 +5,31 @@ import BasicList
 //
 // The hub list is a `BasicListView` (the engine, dogfooded): rows via
 // `onRowTap` → programmatic navigation, not NavigationLink — the same
-// "data in, events out" contract the demos teach. Appearance follows the
-// system; the toolbar toggle overrides it for side-by-side light/dark
-// testing.
+// "data in, events out" contract the demos teach. Appearance defaults to
+// the system; the toolbar toggle overrides it for side-by-side light/dark
+// testing, and the choice persists across launches via `@AppStorage`.
+
+/// The three states the toolbar toggle cycles through. Stored as a String
+/// in `@AppStorage` because `Optional<ColorScheme>` isn't directly storable.
+enum SchemePreference: String {
+    case system
+    case light
+    case dark
+
+    /// `nil` = follow the system.
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .system: return nil
+        case .light: return .light
+        case .dark: return .dark
+        }
+    }
+}
 
 struct ContentView: View {
     @State private var path: [DemoKind] = []
-    /// `nil` = follow the system; the toolbar button cycles nil → light → dark.
-    @State private var schemePreference: ColorScheme?
+    /// Persists across launches; defaults to following the system.
+    @AppStorage("schemePreference") private var schemePreference: SchemePreference = .system
 
     init() {
         // Demo launch routing — `simctl launch ... Examples -datePager`
@@ -53,17 +70,17 @@ struct ContentView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        // nil → light → dark → nil
+                        // system → light → dark → system
                         switch schemePreference {
-                        case nil: schemePreference = .light
+                        case .system: schemePreference = .light
                         case .light: schemePreference = .dark
-                        default: schemePreference = nil
+                        case .dark: schemePreference = .system
                         }
                     } label: {
                         switch schemePreference {
                         case .light: Image(systemName: "sun.max.fill")
                         case .dark: Image(systemName: "moon.fill")
-                        default: Image(systemName: "circle.lefthalf.filled")
+                        case .system: Image(systemName: "circle.lefthalf.filled")
                         }
                     }
                     .accessibilityLabel("Appearance")
@@ -71,7 +88,7 @@ struct ContentView: View {
             }
             .navigationDestination(for: DemoKind.self) { $0.destination }
         }
-        .preferredColorScheme(schemePreference)
+        .preferredColorScheme(schemePreference.colorScheme)
     }
 }
 
