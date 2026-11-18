@@ -8,6 +8,10 @@ import BasicList
 // "data in, events out" contract the demos teach. Appearance defaults to
 // the system; the toolbar toggle overrides it for side-by-side light/dark
 // testing, and the choice persists across launches via `@AppStorage`.
+//
+// HIG: Liquid Glass on the toolbar control, a material header card, zoom
+// transitions hub→demo (skipped under Reduce Motion), 8-pt grid spacing,
+// Dynamic Type on every Text (only glyphs live in fixed frames).
 
 /// The three states the toolbar toggle cycles through. Stored as a String
 /// in `@AppStorage` because `Optional<ColorScheme>` isn't directly storable.
@@ -24,12 +28,23 @@ enum SchemePreference: String {
         case .dark: return .dark
         }
     }
+
+    /// The glyph per state — the cycle's own affordance.
+    var symbol: String {
+        switch self {
+        case .system: return "circle.lefthalf.filled"
+        case .light: return "sun.max.fill"
+        case .dark: return "moon.fill"
+        }
+    }
 }
 
 struct ContentView: View {
     @State private var path: [DemoKind] = []
     /// Persists across launches; defaults to following the system.
     @AppStorage("schemePreference") private var schemePreference: SchemePreference = .system
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Namespace private var hubNamespace
 
     init() {
         // Demo launch routing — `simctl launch ... Examples -datePager`
@@ -53,6 +68,7 @@ struct ContentView: View {
         NavigationStack(path: $path) {
             BasicListView(items: DemoKind.allCases, config: DemoTheme.list) { entry in
                 HubRowView(entry: entry)
+                    .hubZoomSource(entry, in: hubNamespace, reduceMotion: reduceMotion)
             }
             .basicListHeader {
                 HubHeaderView()
@@ -64,12 +80,16 @@ struct ContentView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
             }
-            .onRowTap { path.append($0) }
+            .onRowTap { entry in
+                Haptics.tap()
+                path.append(entry)
+            }
             .background(DemoTheme.canvas)
             .navigationTitle("Examples")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
+                        Haptics.tap()
                         // system → light → dark → system
                         switch schemePreference {
                         case .system: schemePreference = .light
@@ -77,16 +97,21 @@ struct ContentView: View {
                         case .dark: schemePreference = .system
                         }
                     } label: {
-                        switch schemePreference {
-                        case .light: Image(systemName: "sun.max.fill")
-                        case .dark: Image(systemName: "moon.fill")
-                        case .system: Image(systemName: "circle.lefthalf.filled")
-                        }
+                        Image(systemName: schemePreference.symbol)
+                            .font(.system(.body, weight: .semibold))
+                            .frame(width: 36, height: 36)
+                            .glassEffect(.regular.interactive(), in: .circle)
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Circle())
                     }
+                    .buttonStyle(.plain)
                     .accessibilityLabel("Appearance")
                 }
             }
-            .navigationDestination(for: DemoKind.self) { $0.destination }
+            .navigationDestination(for: DemoKind.self) { entry in
+                entry.destination
+                    .hubZoomDestination(entry, in: hubNamespace, reduceMotion: reduceMotion)
+            }
         }
         .preferredColorScheme(schemePreference.colorScheme)
     }
@@ -153,19 +178,23 @@ enum DemoKind: String, CaseIterable, Identifiable {
     }
 }
 
-/// Hub header — what this catalog is, in two lines.
+/// Hub header — what this catalog is, on a material card (HIG: chrome sits
+/// ON the canvas, it doesn't paint the canvas).
 private struct HubHeaderView: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             Text("BasicList Examples")
                 .font(.system(.title, design: .rounded).weight(.bold))
             Text("Every demo exercises one layer of the package — page scaffold, engine, date pager.")
                 .font(.system(.footnote, design: .rounded))
                 .foregroundStyle(.secondary)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .basicListRowStyle()
     }
 }
 
@@ -182,9 +211,9 @@ private struct HubRowView: View {
                 .foregroundStyle(entry.tint)
                 .frame(width: 36, height: 36)
                 .background(entry.tint.opacity(0.15), in: Circle())
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(entry.title)
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .font(.system(.callout, design: .rounded).weight(.semibold))
                 Text(entry.subtitle)
                     .font(.system(.caption, design: .rounded))
                     .foregroundStyle(.secondary)
@@ -192,14 +221,49 @@ private struct HubRowView: View {
             }
             Spacer(minLength: 8)
             Image(systemName: "chevron.right")
-                .font(.system(size: 12, weight: .semibold))
+                .font(.system(.caption, weight: .semibold))
                 .foregroundStyle(.tertiary)
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 14)
-        .background(DemoTheme.rowCard, in: RoundedRectangle(cornerRadius: 14))
+        .padding(.vertical, 12)
+        .background(DemoTheme.rowCard, in: RoundedRectangle(cornerRadius: 16))
         .padding(.horizontal, 8)
-        .padding(.vertical, 3)
+        .padding(.vertical, 4)
         .basicListRowStyle()
+    }
+}
+
+// MARK: Zoom transition (hub → demo) — Reduce Motion replaces it with the
+// default push; the API is iOS-family only, other platforms keep the push.
+
+private extension View {
+    @ViewBuilder
+    func hubZoomSource(
+        _ kind: DemoKind, in namespace: Namespace.ID, reduceMotion: Bool
+    ) -> some View {
+        #if os(iOS) || os(visionOS)
+        if reduceMotion {
+            self
+        } else {
+            matchedTransitionSource(id: kind, in: namespace)
+        }
+        #else
+        self
+        #endif
+    }
+
+    @ViewBuilder
+    func hubZoomDestination(
+        _ kind: DemoKind, in namespace: Namespace.ID, reduceMotion: Bool
+    ) -> some View {
+        #if os(iOS) || os(visionOS)
+        if reduceMotion {
+            self
+        } else {
+            navigationTransition(.zoom(sourceID: kind, in: namespace))
+        }
+        #else
+        self
+        #endif
     }
 }

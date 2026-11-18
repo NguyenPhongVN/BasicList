@@ -23,13 +23,20 @@ struct PagedListDemo: View {
     @State private var isRefreshing = false
     /// Out of pages — the load-more handler stops; the footer announces it.
     @State private var exhausted = false
+    /// First-load skeleton gate — rows stay REAL (identity stable), only
+    /// redacted until the fake fetch lands.
+    @State private var hasLoadedOnce = false
 
     /// The demo's page budget — a real VM stops when the API says so.
     private static let maxPages = 6
 
     var body: some View {
         BasicListPage(title: "Feed", subtitle: "\(items.count) items · \(page) page\(page == 1 ? "" : "s")", items: items, config: DemoTheme.page) {
+            // First-load skeleton: the rows are the REAL rows (identity
+            // stable — the list never swaps out), redacted until the fake
+            // fetch lands.
             DemoRowView(item: $0)
+                .redacted(reason: hasLoadedOnce ? [] : .placeholder)
         }
         .basicPageIsLoading(isRefreshing)
         .basicPageFooter {
@@ -64,6 +71,14 @@ struct PagedListDemo: View {
         }
         .basicPageLoadMore(mode: .pagesAhead(2)) {
             await fetchNextPage()
+        }
+        .task {
+            // The fake first fetch — one second of skeleton, then the real
+            // rows appear (they were real all along; only the redaction
+            // lifts).
+            guard !hasLoadedOnce else { return }
+            try? await Task.sleep(for: .seconds(1))
+            hasLoadedOnce = true
         }
     }
 

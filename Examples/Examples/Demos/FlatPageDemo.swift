@@ -28,18 +28,15 @@ struct FlatPageDemo: View {
         .basicPageSearch($query, prompt: "Search transactions")
         .basicPageTrailing {
             // A REAL slot — adds a fixture, so the screen reacts to chrome.
-            Button {
+            GlassIconButton(systemImage: "plus", label: "Add transaction") {
                 items.insert(demoItem(at: items.count + 1), at: 0)
-            } label: {
-                Image(systemName: "plus.circle.fill")
-                    .font(.system(size: 24))
             }
         }
         .basicPageIsLoading(isLoading)
         .basicPageEmptyState {
-            VStack(spacing: 8) {
+            VStack(spacing: 12) {
                 Image(systemName: "magnifyingglass")
-                    .font(.system(size: 32, weight: .medium))
+                    .font(.system(.largeTitle, design: .rounded, weight: .medium))
                     .foregroundStyle(.secondary)
                 Text("No transaction matches \"\(query)\"")
                     .font(.system(.footnote, design: .rounded))
@@ -72,6 +69,7 @@ struct FlatPageDemo: View {
             }
         }
         .basicPageRowTap { tapped in
+            Haptics.tap()
             if let index = items.firstIndex(where: { $0.id == tapped.id }) {
                 items[index].isPinned.toggle()
             }
@@ -84,8 +82,12 @@ struct FlatPageDemo: View {
         .basicPageLoadMore(mode: .pixelDefault) {
             try? await Task.sleep(for: .seconds(0.3))
             loadRound += 1
+            // Page-NAMESPACED ids: the absolute-index form collided with the
+            // initial 1..16 range the moment a fire landed at launch (16
+            // rows already sit inside the 600 pt region) — the identity
+            // contract needs ids unique across the WHOLE array.
             items += (1...6).map { offset in
-                demoItem(at: loadRound * 6 + offset, note: "Loaded round \(loadRound)")
+                demoItem(at: offset, page: loadRound, note: "Loaded round \(loadRound)")
             }
         }
     }

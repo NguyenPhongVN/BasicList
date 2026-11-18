@@ -100,16 +100,19 @@ struct DatePager: View {
         .padding(.top, 12)
     }
 
-    /// Round chevron — 36pt visual inside a 44pt hit floor, disabled → 0.3
-    /// opacity.
+    /// Round glass chevron — 36pt Liquid Glass visual inside a 44pt hit
+    /// floor (the BudgetStepperView language), disabled → 0.3 opacity.
     private func chevron(
         left: Bool, disabled: Bool, action: @escaping () -> Void
     ) -> some View {
-        Button(action: action) {
+        Button {
+            Haptics.tap()
+            action()
+        } label: {
             Image(systemName: left ? "chevron.left" : "chevron.right")
                 .foregroundStyle(chevronColor)
                 .frame(width: 36, height: 36)
-                .contentShape(Circle())
+                .glassEffect(.regular.interactive(), in: .circle)
                 .frame(minWidth: 44, minHeight: 44)
                 .contentShape(Circle())
                 .opacity(disabled ? 0.3 : 1)

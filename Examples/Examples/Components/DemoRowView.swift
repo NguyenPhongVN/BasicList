@@ -6,6 +6,9 @@ import BasicList
 // Drawn as a CARD floating on the canvas (the grouped-list look); the cell
 // applies `.basicListRowStyle()` ITSELF — the engine never re-styles caller
 // content. Used by every demo screen.
+//
+// HIG: spacing on the 8-pt grid (4-pt half-steps), text supports Dynamic
+// Type (only the glyph lives in a fixed frame), money stays monospaced.
 
 struct DemoRowView: View {
     let item: DemoItem
@@ -19,9 +22,9 @@ struct DemoRowView: View {
                 .foregroundStyle(tint)
                 .frame(width: 36, height: 36)
                 .background(tint.opacity(0.15), in: Circle())
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(item.title)
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .font(.system(.callout, design: .rounded).weight(.semibold))
                 Text(item.note)
                     .font(.system(.caption, design: .rounded))
                     .foregroundStyle(.secondary)
@@ -30,7 +33,7 @@ struct DemoRowView: View {
             Spacer(minLength: 8)
             if item.isPinned {
                 Image(systemName: "pin.fill")
-                    .font(.system(size: 11))
+                    .font(.system(.caption, weight: .semibold))
                     .foregroundStyle(.blue)
             }
             Text(demoAmount(item))
@@ -38,10 +41,10 @@ struct DemoRowView: View {
                 .foregroundStyle(item.isIncome ? Color.green : Color.primary)
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 14)
-        .background(DemoTheme.rowCard, in: RoundedRectangle(cornerRadius: 14))
+        .padding(.vertical, 12)
+        .background(DemoTheme.rowCard, in: RoundedRectangle(cornerRadius: 16))
         .padding(.horizontal, 8)
-        .padding(.vertical, 3)
+        .padding(.vertical, 4)
         .basicListRowStyle()
     }
 }
