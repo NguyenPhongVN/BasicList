@@ -9,7 +9,7 @@ import SwiftUI
 // here with the app's look and wording.
 
 /// One period unit of the date pager — a page is exactly one unit wide.
-enum DemoPeriodUnit: Equatable {
+enum PeriodUnit: Equatable {
     case day
     case week
     case month
@@ -41,7 +41,7 @@ enum DemoPeriodUnit: Equatable {
 ///
 /// Accessibility: the chevron Buttons carry the SF Symbols' built-in
 /// localized descriptions ("chevron left" / "chevron right").
-struct BasicListDatePager: View {
+struct DatePager: View {
 
     /// The window label between the chevrons — caller-formatted per body
     /// pass (e.g. "Sep 1 - Sep 30").
@@ -53,7 +53,7 @@ struct BasicListDatePager: View {
     /// math (the exact-equality bound — dates only meet it when the same
     /// stepper built them).
     let anchor: Date
-    let unit: DemoPeriodUnit
+    let unit: PeriodUnit
     /// Flip-direction callback — `true` = forward (next date).
     var onNavigate: ((Bool) -> Void)?
 
@@ -126,7 +126,7 @@ struct BasicListDatePager: View {
     /// directly; month/year re-derive from the ANCHOR (see the type doc —
     /// compounding from a clamped date drifts permanently).
     static func step(
-        _ date: Date, by periods: Int, anchor: Date, unit: DemoPeriodUnit
+        _ date: Date, by periods: Int, anchor: Date, unit: PeriodUnit
     ) -> Date {
         let calendar = Calendar.current
         switch unit {

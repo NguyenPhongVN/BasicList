@@ -66,11 +66,11 @@ struct DatePagerPageDemo: View {
         .basicPageContentKey(windowStart, transition: .asymmetric(
             insertion: .move(edge: pageForward ? .trailing : .leading),
             removal: .move(edge: pageForward ? .leading : .trailing)))
-        // The pager is APP chrome (this file's sibling `BasicListDatePager`,
+        // The pager is APP chrome (the app-side `DatePager` component,
         // the BudgetStepperView pattern) — the page only provides the
         // below-list slot via `.basicPageBottomBar`.
         .basicPageBottomBar {
-            BasicListDatePager(
+            DatePager(
                 text: windowText,
                 windowStart: $windowStart,
                 anchor: Self.anchor,

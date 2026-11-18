@@ -73,6 +73,61 @@ struct ContentView: View {
     }
 }
 
+/// The demos the hub offers — each one exercises a layer of the package.
+enum DemoKind: String, CaseIterable, Identifiable {
+    case flat
+    case sectioned
+    case datePager
+    case empty
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .flat: return "Flat page"
+        case .sectioned: return "Sectioned page"
+        case .datePager: return "Date pager"
+        case .empty: return "Empty state"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .flat: return "Search · slots · swipe both edges · load-more"
+        case .sectioned: return "Sticky headers · group footers · swipe"
+        case .datePager: return "Previous/next period · slide transition"
+        case .empty: return "Default empty state · pull-to-load"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .flat: return "list.bullet"
+        case .sectioned: return "square.grid.2x2"
+        case .datePager: return "calendar"
+        case .empty: return "tray"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .flat: return .blue
+        case .sectioned: return .orange
+        case .datePager: return .purple
+        case .empty: return .secondary
+        }
+    }
+
+    @ViewBuilder var destination: some View {
+        switch self {
+        case .flat: FlatPageDemo()
+        case .sectioned: SectionedPageDemo()
+        case .datePager: DatePagerPageDemo()
+        case .empty: EmptyPageDemo()
+        }
+    }
+}
+
 /// Hub header — what this catalog is, in two lines.
 private struct HubHeaderView: View {
     var body: some View {

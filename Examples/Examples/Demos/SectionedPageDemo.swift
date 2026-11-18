@@ -18,12 +18,12 @@ struct SectionedPageDemo: View {
             BasicListSection(section: "income", items: income, itemID: \.id) {
                 sectionHeader("INCOME", count: income.count)
             } footer: {
-                sectionFooter(demoAmountString(incomeTotal, income: true))
+                sectionFooter(demoAmount(incomeTotal, income: true))
             },
             BasicListSection(section: "expense", items: expense, itemID: \.id) {
                 sectionHeader("EXPENSE", count: expense.count)
             } footer: {
-                sectionFooter(demoAmountString(expenseTotal, income: false))
+                sectionFooter(demoAmount(expenseTotal, income: false))
             }
         ]
     }
@@ -65,8 +65,4 @@ struct SectionedPageDemo: View {
         }
         .padding(.vertical, 8)
     }
-}
-
-private func demoAmountString(_ amount: Double, income: Bool) -> String {
-    String(format: income ? "+$%.2f" : "−$%.2f", amount)
 }
