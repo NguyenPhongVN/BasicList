@@ -8,7 +8,7 @@ import BasicList
 // tap, pull-to-refresh and continuous load-more — one `BasicListPage`.
 
 struct FlatPageDemo: View {
-    @State private var items: [DemoItem] = (1...12).map { demoItem(at: $0) }
+    @State private var items: [DemoItem] = (1...16).map { demoItem(at: $0) }
     @State private var query = ""
     @State private var loadRound = 0
     @State private var isLoading = false

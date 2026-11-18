@@ -33,7 +33,7 @@ struct EmptyPageDemo: View {
             // with data, showing the in-list empty→loaded hand-off.
             guard items.isEmpty else { return }
             try? await Task.sleep(for: .seconds(0.8))
-            items = (1...5).map { demoItem(at: $0) }
+            items = (1...8).map { demoItem(at: $0) }
         }
     }
 }

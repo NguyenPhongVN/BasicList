@@ -9,8 +9,8 @@ struct SectionedPageDemo: View {
     /// behavior, untouched by the page), the group footers scroll like a
     /// real section.
     private var sections: [BasicListSection<DemoItem>] {
-        let income = (1...12).filter { demoItem(at: $0).isIncome }.map { demoItem(at: $0) }
-        let expense = (1...12).filter { !demoItem(at: $0).isIncome }.map { demoItem(at: $0) }
+        let income = (1...24).filter { demoItem(at: $0).isIncome }.map { demoItem(at: $0) }
+        let expense = (1...24).filter { !demoItem(at: $0).isIncome }.map { demoItem(at: $0) }
         let incomeTotal = income.reduce(0) { $0 + $1.amount }
         let expenseTotal = expense.reduce(0) { $0 + $1.amount }
 

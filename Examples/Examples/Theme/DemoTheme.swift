@@ -17,6 +17,8 @@ enum DemoTheme {
     /// Card surface of one demo/hub row (the grouped-list look: rows are
     /// cards floating on the canvas, light white / dark elevated).
     static let rowCard = Color("DemoRowCard")
+    // Tint of the loading affordances (page loading row + footer progress).
+    static let progressTint = Color.blue
 
     /// Page-level config for every `BasicListPage` demo.
     static let page = BasicListPageConfig(
@@ -32,7 +34,7 @@ enum DemoTheme {
         emptyTitle: "Nothing here yet",
         emptyMessage: "Items you add will show up in this list.",
         emptyIconColor: .secondary,
-        progressTint: .blue,
+        progressTint: progressTint,
         destructiveActionTint: .red,
         bottomClearance: 0)
 

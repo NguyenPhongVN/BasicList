@@ -49,7 +49,7 @@ struct DatePagerPageDemo: View {
     /// shows different rows (a paged page is a different window of data,
     /// not the same rows with a new label).
     private var items: [DemoItem] {
-        (1...8).map { row in
+        (1...10).map { row in
             let rotated = ((row + pageIndex * 3 - 1) % 8 + 8) % 8 + 1
             return demoItem(at: rotated, page: pageIndex, note: windowText)
         }

@@ -19,7 +19,9 @@ struct ContentView: View {
         // jumps straight to one demo (handy for screenshots and manual
         // testing); no argument → the hub.
         let arguments = ProcessInfo.processInfo.arguments
-        if arguments.contains("-datePager") {
+        if arguments.contains("-paged") {
+            _path = State(initialValue: [.paged])
+        } else if arguments.contains("-datePager") {
             _path = State(initialValue: [.datePager])
         } else if arguments.contains("-flat") {
             _path = State(initialValue: [.flat])
@@ -76,6 +78,7 @@ struct ContentView: View {
 /// The demos the hub offers — each one exercises a layer of the package.
 enum DemoKind: String, CaseIterable, Identifiable {
     case flat
+    case paged
     case sectioned
     case datePager
     case empty
@@ -85,6 +88,7 @@ enum DemoKind: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .flat: return "Flat page"
+        case .paged: return "Refresh & load-more"
         case .sectioned: return "Sectioned page"
         case .datePager: return "Date pager"
         case .empty: return "Empty state"
@@ -93,7 +97,8 @@ enum DemoKind: String, CaseIterable, Identifiable {
 
     var subtitle: String {
         switch self {
-        case .flat: return "Search · slots · swipe both edges · load-more"
+        case .flat: return "Search · slots · swipe both edges · footer progress"
+        case .paged: return "Slow network · refresh · exhausted state"
         case .sectioned: return "Sticky headers · group footers · swipe"
         case .datePager: return "Previous/next period · slide transition"
         case .empty: return "Default empty state · pull-to-load"
@@ -103,6 +108,7 @@ enum DemoKind: String, CaseIterable, Identifiable {
     var symbol: String {
         switch self {
         case .flat: return "list.bullet"
+        case .paged: return "arrow.down.circle"
         case .sectioned: return "square.grid.2x2"
         case .datePager: return "calendar"
         case .empty: return "tray"
@@ -112,6 +118,7 @@ enum DemoKind: String, CaseIterable, Identifiable {
     var tint: Color {
         switch self {
         case .flat: return .blue
+        case .paged: return .indigo
         case .sectioned: return .orange
         case .datePager: return .purple
         case .empty: return .secondary
@@ -121,6 +128,7 @@ enum DemoKind: String, CaseIterable, Identifiable {
     @ViewBuilder var destination: some View {
         switch self {
         case .flat: FlatPageDemo()
+        case .paged: PagedListDemo()
         case .sectioned: SectionedPageDemo()
         case .datePager: DatePagerPageDemo()
         case .empty: EmptyPageDemo()
