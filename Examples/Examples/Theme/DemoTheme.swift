@@ -20,23 +20,25 @@ enum DemoTheme {
     // Tint of the loading affordances (page loading row + footer progress).
     static let progressTint = Color.blue
 
-    /// Page-level config for every `BasicListPage` demo.
+    /// Page-level config for every `BasicListPage` demo — the single wiring
+    /// point: four facets, every design value explicit.
     static let page = BasicListPageConfig(
-        titleColor: .primary,
-        titleFont: .system(.title2, design: .rounded).weight(.bold),
-        subtitleColor: .secondary,
-        subtitleFont: .system(.footnote, design: .rounded),
-        backgroundColor: canvas,
-        headerListSpacing: 8,
-        searchBackground: searchField,
-        searchForeground: .primary,
-        emptyIcon: "tray",
-        emptyTitle: "Nothing here yet",
-        emptyMessage: "Items you add will show up in this list.",
-        emptyIconColor: .secondary,
-        progressTint: progressTint,
-        destructiveActionTint: .red,
-        bottomClearance: 0)
+        chrome: .init(
+            titleColor: .primary,
+            titleFont: .system(.title2, design: .rounded).weight(.bold),
+            subtitleColor: .secondary,
+            subtitleFont: .system(.footnote, design: .rounded),
+            backgroundColor: canvas,
+            headerPadding: EdgeInsets(top: 12, leading: 16, bottom: 8, trailing: 16),
+            headerListSpacing: 8,
+            progressTint: progressTint),
+        search: .init(background: searchField, foreground: .primary),
+        emptyFallback: .init(
+            icon: "tray",
+            iconColor: .secondary,
+            title: "Nothing here yet",
+            message: "Items you add will show up in this list."),
+        list: .init(destructiveActionTint: .red, bottomClearance: 0))
 
     /// The app-side date pager's look (the pager is app chrome —
     /// `Components/DatePager.swift` — mounted into `.basicPageBottomBar`).

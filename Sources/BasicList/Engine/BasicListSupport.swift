@@ -173,10 +173,10 @@ public enum BasicListActionRole: Hashable, Sendable {
     case destructive
 }
 
-/// One swipe action returned by the `.rowSwipeActions` handler — data in,
-/// events out: the caller describes the button (title/glyph/role), the engine
-/// draws it and reports back when the user taps. The tint of a destructive
-/// button does NOT live here — it comes from the list's
+/// One swipe action returned by the `.basicListSwipeActions` handler — data
+/// in, events out: the caller describes the button (title/glyph/role), the
+/// engine draws it and reports back when the user taps. The tint of a
+/// destructive button does NOT live here — it comes from the list's
 /// `BasicListConfig.destructiveActionTint`.
 public struct BasicListSwipeAction {
     package let title: String

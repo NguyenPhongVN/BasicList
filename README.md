@@ -18,7 +18,7 @@ Standalone package, pure SwiftUI, **zero dependencies** — **reads no app desig
 - ✅ Full-area row tap, complete VoiceOver support (button trait + accessibility actions)
 - ✅ Pull-to-refresh (errors are handled inside the handler — the spinner ends by itself)
 - ✅ Continuous load-more: geometry probe on the List body + sentinel backstop for short lists; **prefetch via `mode: .pagesAhead(2)`** à la ASDK/IGListKit — loads before the user reaches the bottom
-- ✅ Flat-list reorder (`onMoveRows` + `basicEditMode`) — iOS only
+- ✅ Flat-list reorder (`basicListMoveRows` + `basicListEditMode`) — iOS only
 - ✅ Page scaffold: self-rendered title header + leading/trailing slots, inline search (works outside a `NavigationStack`), loading row, below-list bottom bar, content-key slide transitions
 - ✅ Reorder + swipe + tap + refresh + load-more share one list with no identity conflicts
 
@@ -135,30 +135,30 @@ BasicListView(items: transactions, config: .house) { TransactionRowView($0) }
     .basicListHeader { AccountBalanceHeader() }        // or .basicListHeader(mode: .pinnedTop) { ... }
     .basicListEmptyState { EmptyHero() }               // when the list is empty
     .basicListFooter { SuggestionCategories() }        // bottom of the list
-    .rowSwipeActions { transaction in                  // swipe from the right (default .trailing)
+    .basicListSwipeActions { transaction in            // swipe from the right (default .trailing)
         [
             BasicListSwipeAction(title: "Delete", systemImage: "trash", isDestructive: true) {
                 vm.delete(transaction)
             },
         ]
     }
-    .rowSwipeActions(edge: .leading) { _ in            // add swipe from the left edge
+    .basicListSwipeActions(edge: .leading) { _ in      // add swipe from the left edge
         [BasicListSwipeAction(title: "Pin", systemImage: "pin.fill") { vm.pin($0) }]
     }
-    .rowContextMenu { transaction in                   // long-press menu
+    .basicListContextMenu { transaction in             // long-press menu
         Button("Copy") { vm.copy(transaction) }
     }
-    .onRowTap { vm.open($0) }
-    .onRefresh { try await api.reload() }
-    .onLoadMore(mode: .pagesAhead(2)) { try? await api.nextPage() }  // prefetch 2 screens; handler is non-throwing — handle errors inside it
+    .basicListRowTap { vm.open($0) }
+    .basicListRefresh { try await api.reload() }
+    .basicListLoadMore(mode: .pagesAhead(2)) { try? await api.nextPage() }  // prefetch 2 screens; handler is non-throwing — handle errors inside it
 ```
 
 Reorder (flat list, iOS only — the handle appears when `editMode` is `.active`):
 
 ```swift
 BasicListView(items: categories, config: .house) { CategoryRowView($0) }
-    .onMoveRows { vm.move($0, to: $1) }
-    .basicEditMode($editMode)
+    .basicListMoveRows { vm.move($0, to: $1) }
+    .basicListEditMode($editMode)
 ```
 
 ### Page scaffold — `BasicListPage`
@@ -173,7 +173,7 @@ BasicListPage(title: "Log", subtitle: "October", items: transactions, config: .p
 .basicPageTrailing { Button { vm.add() } label: { Image(systemName: "plus.circle.fill") } }
 .basicPageIsLoading(vm.isLoading)                          // ProgressView row between chrome and list — list stays mounted
 .basicPageRowTap { vm.open($0) }
-.basicPageRowSwipeActions { vm.swipeActions(for: $0) }
+.basicPageSwipeActions { vm.swipeActions(for: $0) }
 .basicPageRefresh { try await api.reload() }
 .basicPageLoadMore { try? await api.nextPage() }
 ```
@@ -233,11 +233,18 @@ Every color/metric comes in through the config — **missing config is a compile
 
 ### `BasicListPageConfig` — the page chrome
 
-Same contract for the page layer (title/subtitle colors + fonts, page background, search colors, default empty state wording/icon, loading tint) plus the two forwarded engine fields (`destructiveActionTint`, `bottomClearance` — the page derives the inner `BasicListConfig` from them, so a screen wires ONE config).
+Same contract for the page layer, grouped into **four facets** — one per chrome surface — so call sites read by anatomy:
+
+| Facet | Contents |
+|---|---|
+| `chrome` | Title/subtitle colors + fonts, page background, header padding + list spacing, loading tint |
+| `search` | Search pill fill + foreground (used when `.basicPageSearch` attaches) |
+| `emptyFallback` | Fallback empty state icon/color/title/message (applied until `.basicPageEmptyState` replaces it) |
+| `list` | The forwarded engine `BasicListConfig` — a screen wires ONE config, not two |
 
 ### Single-point wiring
 
-The app layer assembles the standard values at **one point** instead of scattering colors across call sites:
+The app layer assembles the standard values at **one point** instead of scattering colors across call sites; derived variants chain `.updating` instead of re-calling the init:
 
 ```swift
 extension BasicListConfig {
@@ -245,11 +252,21 @@ extension BasicListConfig {
         BasicListConfig(destructiveActionTint: .red, bottomClearance: 80)
     }
 }
+
+extension BasicListPageConfig {
+    static var pageHouse: BasicListPageConfig { ... }  // four facets, all explicit
+}
+
+// Derived configs are one-liners:
+static let detail = BasicListPageConfig.pageHouse.updating {
+    $0.list.bottomClearance = 64
+    $0.emptyFallback.title = "No transactions"
+}
 ```
 
 Changing the look of every list in the app means editing exactly that one wiring file.
 
-**Evolution policy** — the config structs are the library's main semver surface: new fields ship ONLY as new `init` overloads with defaults (existing init signatures never change) or as builder methods, so upgrades stay source-compatible.
+**Evolution policy** — the config structs are the library's main semver surface and evolve by ONE rule: a new field appends to its init at the END with a default (labeled call sites never break, no init overload is ever created). Renaming or repurposing an existing parameter is the only forbidden move.
 
 ## Public API
 
@@ -275,12 +292,12 @@ Changing the look of every list in the app means editing exactly that one wiring
 | `.basicListHeader(mode:_:)` | Header at the top of the list — scrolls or pinned |
 | `.basicListEmptyState(_:)` | Empty hero INSIDE the list (keeps list identity) |
 | `.basicListFooter(_:)` | Bottom content — after rows, before the sentinel |
-| `.rowSwipeActions(edge:allowsFullSwipe:_:)` | Handler returns `[BasicListSwipeAction]` per item — both edges coexist; `allowsFullSwipe: false` opts out of full swipe |
-| `.rowContextMenu(_:)` | Long-press menu per item |
-| `.onRowTap(_:)` | Full-area row tap — doesn't steal the swipe gesture |
-| `.onMoveRows(_:)` + `.basicEditMode(_:)` | Drag-to-reorder flat list (iOS) |
-| `.onRefresh(_:)` | Pull-to-refresh; errors handled inside the handler |
-| `.onLoadMore(mode:_:)` | Continuous load-more near the bottom |
+| `.basicListSwipeActions(edge:allowsFullSwipe:_:)` | Handler returns `[BasicListSwipeAction]` per item — both edges coexist; `allowsFullSwipe: false` opts out of full swipe |
+| `.basicListContextMenu(_:)` | Long-press menu per item |
+| `.basicListRowTap(_:)` | Full-area row tap — doesn't steal the swipe gesture |
+| `.basicListMoveRows(_:)` + `.basicListEditMode(_:)` | Drag-to-reorder flat list (iOS) |
+| `.basicListRefresh(_:)` | Pull-to-refresh; errors handled inside the handler |
+| `.basicListLoadMore(mode:_:)` | Continuous load-more near the bottom |
 
 ### Page scaffold (`BasicListPage`)
 
@@ -292,7 +309,7 @@ Changing the look of every list in the app means editing exactly that one wiring
 | `.basicPageIsLoading(_:)` | Loading row above the list — list identity never breaks |
 | `.basicPageBottomBar(_:)` | Below-list slot for the caller's own component (stepper, legend…) |
 | `.basicPageContentKey(_:transition:)` | Re-keys the list content — asymmetric slide for paged pages |
-| `.basicPageListHeader / .basicPageEmptyState / .basicPageFooter / .basicPageRowSwipeActions / .basicPageRowContextMenu / .basicPageRowTap / .basicPageMoveRows / .basicPageEditMode (iOS) / .basicPageRefresh / .basicPageLoadMore` | Forwards to the engine's `.basicList*` surface unchanged |
+| `.basicPageListHeader / .basicPageEmptyState / .basicPageFooter / .basicPageSwipeActions / .basicPageContextMenu / .basicPageRowTap / .basicPageMoveRows / .basicPageEditMode (iOS) / .basicPageRefresh / .basicPageLoadMore` | Forwards to the engine's `.basicList*` surface unchanged — mechanical mirror: `basicList` → `basicPage` |
 
 ## Swipe actions — mandatory rules
 

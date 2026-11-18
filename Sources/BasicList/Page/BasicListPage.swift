@@ -38,7 +38,7 @@ import SwiftUI
 /// .basicPageSearch($query, prompt: "Search accounts")
 /// .basicPageTrailing { Button { … } label: { Image(systemName: "plus") } }
 /// .basicPageRowTap { route(to: $0) }
-/// .basicPageRowSwipeActions { account in deleteActions(for: account) }
+/// .basicPageSwipeActions { account in deleteActions(for: account) }
 /// .basicPageRefresh { try await api.reload() }
 /// .basicPageLoadMore { try? await api.nextPage() }
 ///
@@ -47,23 +47,24 @@ import SwiftUI
 /// }
 /// ```
 ///
-/// Forwarding contract: every engine modifier has a `basicPage*` twin that
-/// forwards to the inner list unchanged (replace semantics included — the
-/// last call wins), so a page exposes exactly the engine's behavior surface,
-/// nothing invented on top:
+/// Forwarding contract: every engine modifier has a `basicPage*` twin formed
+/// MECHANICALLY — same signature, `basicList` → `basicPage` — that forwards
+/// to the inner list unchanged (replace semantics included — the last call
+/// wins), so a page exposes exactly the engine's behavior surface, nothing
+/// invented on top:
 ///
 /// | Page modifier | Forwards to |
 /// |---|---|
 /// | `.basicPageListHeader(mode:_:)` | `.basicListHeader(mode:_:)` |
 /// | `.basicPageEmptyState(_:)` | `.basicListEmptyState(_:)` |
 /// | `.basicPageFooter(_:)` | `.basicListFooter(_:)` |
-/// | `.basicPageRowSwipeActions(edge:allowsFullSwipe:_:)` | `.rowSwipeActions(edge:allowsFullSwipe:_:)` |
-/// | `.basicPageRowContextMenu(_:)` | `.rowContextMenu(_:)` |
-/// | `.basicPageRowTap(_:)` | `.onRowTap(_:)` |
-/// | `.basicPageMoveRows(_:)` | `.onMoveRows(_:)` |
-/// | `.basicPageEditMode(_:)` (iOS) | `.basicEditMode(_:)` |
-/// | `.basicPageRefresh(_:)` | `.onRefresh(_:)` |
-/// | `.basicPageLoadMore(mode:_:)` | `.onLoadMore(mode:_:)` |
+/// | `.basicPageSwipeActions(edge:allowsFullSwipe:_:)` | `.basicListSwipeActions(edge:allowsFullSwipe:_:)` |
+/// | `.basicPageContextMenu(_:)` | `.basicListContextMenu(_:)` |
+/// | `.basicPageRowTap(_:)` | `.basicListRowTap(_:)` |
+/// | `.basicPageMoveRows(_:)` | `.basicListMoveRows(_:)` |
+/// | `.basicPageEditMode(_:)` (iOS) | `.basicListEditMode(_:)` |
+/// | `.basicPageRefresh(_:)` | `.basicListRefresh(_:)` |
+/// | `.basicPageLoadMore(mode:_:)` | `.basicListLoadMore(mode:_:)` |
 ///
 /// Page chrome beyond the table: `.basicPageLeading`, `.basicPageTrailing`,
 /// `.basicPageSearch(_:prompt:)`, `.basicPageIsLoading(_:)` and
@@ -137,7 +138,7 @@ public struct BasicListPage<Item, Content: View>: View {
         self.title = title
         self.subtitle = subtitle
         self.config = config
-        self.listConfig = config.listConfig
+        self.listConfig = config.list
         self.leadingSlot = nil
         self.trailingSlot = nil
         self.searchBinding = nil
@@ -146,7 +147,7 @@ public struct BasicListPage<Item, Content: View>: View {
         self.bottomBarBuilder = nil
         self.contentKey = nil
         self.contentTransition = nil
-        self.innerList = BasicListView(items: items, config: config.listConfig, content: content)
+        self.innerList = BasicListView(items: items, config: config.list, content: content)
             .basicListEmptyState { BasicListPageDefaultEmptyState(config: config) }
     }
 
@@ -164,7 +165,7 @@ public struct BasicListPage<Item, Content: View>: View {
         self.title = title
         self.subtitle = subtitle
         self.config = config
-        self.listConfig = config.listConfig
+        self.listConfig = config.list
         self.leadingSlot = nil
         self.trailingSlot = nil
         self.searchBinding = nil
@@ -174,7 +175,7 @@ public struct BasicListPage<Item, Content: View>: View {
         self.contentKey = nil
         self.contentTransition = nil
         self.innerList = BasicListView(
-            items: items, id: id, config: config.listConfig, content: content)
+            items: items, id: id, config: config.list, content: content)
             .basicListEmptyState { BasicListPageDefaultEmptyState(config: config) }
     }
 
@@ -190,7 +191,7 @@ public struct BasicListPage<Item, Content: View>: View {
         self.title = title
         self.subtitle = subtitle
         self.config = config
-        self.listConfig = config.listConfig
+        self.listConfig = config.list
         self.leadingSlot = nil
         self.trailingSlot = nil
         self.searchBinding = nil
@@ -199,7 +200,7 @@ public struct BasicListPage<Item, Content: View>: View {
         self.bottomBarBuilder = nil
         self.contentKey = nil
         self.contentTransition = nil
-        self.innerList = BasicListView(sections: sections, config: config.listConfig, content: content)
+        self.innerList = BasicListView(sections: sections, config: config.list, content: content)
             .basicListEmptyState { BasicListPageDefaultEmptyState(config: config) }
     }
 
@@ -342,70 +343,70 @@ public struct BasicListPage<Item, Content: View>: View {
     }
 
     /// Swipe actions per row. Forwards to
-    /// `BasicListView.rowSwipeActions(edge:allowsFullSwipe:_:)` unchanged —
-    /// both edges coexist, `allowsFullSwipe` passes through, replace
-    /// semantics per edge (the last call wins).
-    public func basicPageRowSwipeActions(
+    /// `BasicListView.basicListSwipeActions(edge:allowsFullSwipe:_:)`
+    /// unchanged — both edges coexist, `allowsFullSwipe` passes through,
+    /// replace semantics per edge (the last call wins).
+    public func basicPageSwipeActions(
         edge: HorizontalEdge = .trailing,
         allowsFullSwipe: Bool = true,
         _ handler: @escaping (Item) -> [BasicListSwipeAction]
     ) -> Self {
         var copy = self
-        copy.innerList = copy.innerList.rowSwipeActions(
+        copy.innerList = copy.innerList.basicListSwipeActions(
             edge: edge, allowsFullSwipe: allowsFullSwipe, handler)
         return copy
     }
 
     /// Long-press context menu per row. Forwards to
-    /// `BasicListView.rowContextMenu(_:)` unchanged — doesn't steal regular
-    /// taps or swipes.
-    public func basicPageRowContextMenu(
+    /// `BasicListView.basicListContextMenu(_:)` unchanged — doesn't steal
+    /// regular taps or swipes.
+    public func basicPageContextMenu(
         @ViewBuilder _ handler: @escaping (Item) -> some View
     ) -> Self {
         var copy = self
-        copy.innerList = copy.innerList.rowContextMenu { handler($0) }
+        copy.innerList = copy.innerList.basicListContextMenu { handler($0) }
         return copy
     }
 
-    /// Full-area row tap. Forwards to `BasicListView.onRowTap(_:)`
+    /// Full-area row tap. Forwards to `BasicListView.basicListRowTap(_:)`
     /// unchanged — VoiceOver button trait included.
     public func basicPageRowTap(_ handler: @escaping (Item) -> Void) -> Self {
         var copy = self
-        copy.innerList = copy.innerList.onRowTap(handler)
+        copy.innerList = copy.innerList.basicListRowTap(handler)
         return copy
     }
 
     /// Drag-to-reorder rows (flat shape). Forwards to
-    /// `BasicListView.onMoveRows(_:)` unchanged — the handle appears when
-    /// the edit mode is `.active` (see `.basicPageEditMode`).
+    /// `BasicListView.basicListMoveRows(_:)` unchanged — the handle appears
+    /// when the edit mode is `.active` (see `.basicPageEditMode`).
     public func basicPageMoveRows(_ handler: @escaping (IndexSet, Int) -> Void) -> Self {
         var copy = self
-        copy.innerList = copy.innerList.onMoveRows(handler)
+        copy.innerList = copy.innerList.basicListMoveRows(handler)
         return copy
     }
 
     #if os(iOS)
     /// Pins the inner list's `editMode` — `.active` shows the drag handle of
-    /// `.basicPageMoveRows`. Forwards to `BasicListView.basicEditMode(_:)`
+    /// `.basicPageMoveRows`. Forwards to `BasicListView.basicListEditMode(_:)`
     /// unchanged. iOS-only: `EditMode` is unavailable on macOS.
     public func basicPageEditMode(_ binding: Binding<EditMode>?) -> Self {
         var copy = self
-        copy.innerList = copy.innerList.basicEditMode(binding)
+        copy.innerList = copy.innerList.basicListEditMode(binding)
         return copy
     }
     #endif
 
-    /// Pull-to-refresh. Forwards to `BasicListView.onRefresh(_:)` unchanged
-    /// — handler errors are handled inside the handler (the spinner ends by
-    /// itself).
+    /// Pull-to-refresh. Forwards to `BasicListView.basicListRefresh(_:)`
+    /// unchanged — handler errors are handled inside the handler (the
+    /// spinner ends by itself).
     public func basicPageRefresh(_ handler: @escaping () async throws -> Void) -> Self {
         var copy = self
-        copy.innerList = copy.innerList.onRefresh(handler)
+        copy.innerList = copy.innerList.basicListRefresh(handler)
         return copy
     }
 
     /// Continuous load-more. Forwards to
-    /// `BasicListView.onLoadMore(mode:_:)` unchanged — the mode enum
+    /// `BasicListView.basicListLoadMore(mode:_:)` unchanged — the mode enum
     /// (`.pixelThreshold` / `.pagesAhead`) and the cooldown gate pass
     /// through as-is. The last call wins.
     public func basicPageLoadMore(
@@ -413,8 +414,30 @@ public struct BasicListPage<Item, Content: View>: View {
         _ handler: @escaping () async -> Void
     ) -> Self {
         var copy = self
-        copy.innerList = copy.innerList.onLoadMore(mode: mode, handler)
+        copy.innerList = copy.innerList.basicListLoadMore(mode: mode, handler)
         return copy
+    }
+
+    // MARK: Deprecated pre-unification names (bridge one minor version)
+
+    /// Renamed to `basicPageSwipeActions` — the page mirrors the engine's
+    /// `basicList*` surface mechanically.
+    @available(*, deprecated, renamed: "basicPageSwipeActions")
+    public func basicPageRowSwipeActions(
+        edge: HorizontalEdge = .trailing,
+        allowsFullSwipe: Bool = true,
+        _ handler: @escaping (Item) -> [BasicListSwipeAction]
+    ) -> Self {
+        basicPageSwipeActions(edge: edge, allowsFullSwipe: allowsFullSwipe, handler)
+    }
+
+    /// Renamed to `basicPageContextMenu` — the page mirrors the engine's
+    /// `basicList*` surface mechanically.
+    @available(*, deprecated, renamed: "basicPageContextMenu")
+    public func basicPageRowContextMenu(
+        @ViewBuilder _ handler: @escaping (Item) -> some View
+    ) -> Self {
+        basicPageContextMenu(handler)
     }
 
     // MARK: Body
@@ -431,7 +454,7 @@ public struct BasicListPage<Item, Content: View>: View {
             }
             innerList
                 .basicPageKeyedContent(key: contentKey, transition: contentTransition)
-                .padding(.top, config.headerListSpacing)
+                .padding(.top, config.chrome.headerListSpacing)
             if let bottomBarBuilder {
                 // BELOW the list — fixed chrome the list never covers; the
                 // component is caller-built (app chrome, not list
@@ -439,13 +462,13 @@ public struct BasicListPage<Item, Content: View>: View {
                 bottomBarBuilder()
             }
         }
-        .background(config.backgroundColor)
+        .background(config.chrome.backgroundColor)
     }
 
     /// The chrome row: leading slot — title block (flexible) — trailing
-    /// slot. The paddings are package-internal chrome layout (see
-    /// `BasicListPageConfig`'s doc for what stays internal); the title
-    /// carries the heading trait for VoiceOver rotor navigation.
+    /// slot. The paddings come from `config.chrome.headerPadding` (caller
+    /// metric — see `BasicListPageConfig.Chrome`); the title carries the
+    /// heading trait for VoiceOver rotor navigation.
     private var pageHeader: some View {
         HStack(alignment: .center, spacing: 12) {
             if let leadingSlot {
@@ -453,13 +476,13 @@ public struct BasicListPage<Item, Content: View>: View {
             }
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
-                    .font(config.titleFont)
-                    .foregroundStyle(config.titleColor)
+                    .font(config.chrome.titleFont)
+                    .foregroundStyle(config.chrome.titleColor)
                     .accessibilityAddTraits(.isHeader)
                 if let subtitle {
                     Text(subtitle)
-                        .font(config.subtitleFont)
-                        .foregroundStyle(config.subtitleColor)
+                        .font(config.chrome.subtitleFont)
+                        .foregroundStyle(config.chrome.subtitleColor)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -467,9 +490,7 @@ public struct BasicListPage<Item, Content: View>: View {
                 trailingSlot()
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 12)
-        .padding(.bottom, 8)
+        .padding(config.chrome.headerPadding)
     }
 
     /// The light busy indicator — a bare system `ProgressView` (the platform
@@ -479,7 +500,7 @@ public struct BasicListPage<Item, Content: View>: View {
         HStack {
             Spacer()
             ProgressView()
-                .tint(config.progressTint)
+                .tint(config.chrome.progressTint)
             Spacer()
         }
         .padding(.vertical, 12)
@@ -521,17 +542,17 @@ private struct BasicListPageSearchField: View {
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
-                .foregroundStyle(config.searchForeground)
+                .foregroundStyle(config.search.foreground)
                 .accessibilityHidden(true)
             TextField(prompt ?? "", text: $text)
                 .textFieldStyle(.plain)
                 .autocorrectionDisabled()
-                .foregroundStyle(config.searchForeground)
+                .foregroundStyle(config.search.foreground)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(
-            config.searchBackground,
+            config.search.background,
             in: RoundedRectangle(cornerRadius: 10))
         .padding(.horizontal, 16)
         .padding(.top, 8)
@@ -539,26 +560,26 @@ private struct BasicListPageSearchField: View {
 }
 
 /// The page's fallback empty state — applied at construction when the
-/// caller never chains `.basicPageEmptyState`. Icon/title/message/colors
-/// all come from the config (see `BasicListPageConfig`); like the engine's
-/// empty state it runs INSIDE the list, so list identity is stable across
-/// the empty/loaded phases.
+/// caller never chains `.basicPageEmptyState`. Icon/title/message come from
+/// `config.emptyFallback`, the fonts/colors from `config.chrome` (see
+/// `BasicListPageConfig`); like the engine's empty state it runs INSIDE the
+/// list, so list identity is stable across the empty/loaded phases.
 private struct BasicListPageDefaultEmptyState: View {
     let config: BasicListPageConfig
 
     var body: some View {
         VStack(spacing: 12) {
-            Image(systemName: config.emptyIcon)
+            Image(systemName: config.emptyFallback.icon)
                 .font(.system(size: 32, weight: .medium))
-                .foregroundStyle(config.emptyIconColor)
-            Text(config.emptyTitle)
-                .font(config.titleFont)
-                .foregroundStyle(config.titleColor)
+                .foregroundStyle(config.emptyFallback.iconColor)
+            Text(config.emptyFallback.title)
+                .font(config.chrome.titleFont)
+                .foregroundStyle(config.chrome.titleColor)
                 .multilineTextAlignment(.center)
-            if let message = config.emptyMessage {
+            if let message = config.emptyFallback.message {
                 Text(message)
-                    .font(config.subtitleFont)
-                    .foregroundStyle(config.subtitleColor)
+                    .font(config.chrome.subtitleFont)
+                    .foregroundStyle(config.chrome.subtitleColor)
                     .multilineTextAlignment(.center)
             }
         }

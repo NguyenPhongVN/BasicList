@@ -62,8 +62,8 @@ private struct ReorderHarness: View {
                       config: config) { row in
             Text(row.label)
         }
-        .onMoveRows { _, _ in }
-        .basicEditMode(Binding(get: { recorder.editMode }, set: { recorder.editMode = $0 }))
+        .basicListMoveRows { _, _ in }
+        .basicListEditMode(Binding(get: { recorder.editMode }, set: { recorder.editMode = $0 }))
     }
 }
 
@@ -148,7 +148,7 @@ struct InteractionSimulatorTests {
             items: [IRow(id: 1, label: "Row alpha"), IRow(id: 2, label: "Row beta")],
             config: config
         ) { row in Text(row.label) }
-        .onRowTap { recorder.tapped = $0.id })
+        .basicListRowTap { recorder.tapped = $0.id })
 
         activateA11y()
 
@@ -180,7 +180,7 @@ struct InteractionSimulatorTests {
             items: [IRow(id: 1, label: "Row alpha")],
             config: config
         ) { row in Text(row.label) }
-        .rowSwipeActions { row in
+        .basicListSwipeActions { row in
             [BasicListSwipeAction(title: "Delete \(row.id)", systemImage: "trash", role: .destructive) {},
              BasicListSwipeAction(title: "Pin \(row.id)", systemImage: "pin") {}]
         })
@@ -189,7 +189,7 @@ struct InteractionSimulatorTests {
 
         let rows = elements(labeled: "Row alpha", in: window)
         #expect(rows.count >= 1)
-        // Without an `.onRowTap` handler the row must NOT be a button.
+        // Without a `.basicListRowTap` handler the row must NOT be a button.
         for element in rows {
             #expect(!element.accessibilityTraits.contains(.button),
                     "no tap handler → no button trait")

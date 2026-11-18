@@ -14,103 +14,86 @@ import Testing
 
 struct BasicListPageConfigTests {
 
-    @Test("Init stores the values passed in")
-    func initStoresValues() {
-        let config = BasicListPageConfig(
-            titleColor: .primary,
-            titleFont: .title2,
-            subtitleColor: .secondary,
-            subtitleFont: .footnote,
-            backgroundColor: .blue,
-            headerListSpacing: 12,
-            searchBackground: .gray,
-            searchForeground: .white,
-            emptyIcon: "tray",
-            emptyTitle: "Empty",
-            emptyMessage: "Nothing here",
-            emptyIconColor: .orange,
-            progressTint: .green,
-            destructiveActionTint: .red,
-            bottomClearance: 60)
-        #expect(config.titleColor == .primary)
-        #expect(config.titleFont == .title2)
-        #expect(config.subtitleColor == .secondary)
-        #expect(config.subtitleFont == .footnote)
-        #expect(config.backgroundColor == .blue)
-        #expect(config.headerListSpacing == 12)
-        #expect(config.searchBackground == .gray)
-        #expect(config.searchForeground == .white)
-        #expect(config.emptyIcon == "tray")
-        #expect(config.emptyTitle == "Empty")
-        #expect(config.emptyMessage == "Nothing here")
-        #expect(config.emptyIconColor == .orange)
-        #expect(config.progressTint == .green)
-        #expect(config.destructiveActionTint == .red)
-        #expect(config.bottomClearance == 60)
-    }
-
-    @Test("Init without message → emptyMessage nil")
-    func messageOptional() {
-        let config = BasicListPageConfig(
-            titleColor: .primary,
-            titleFont: .title2,
-            subtitleColor: .secondary,
-            subtitleFont: .footnote,
-            backgroundColor: .blue,
-            headerListSpacing: 12,
-            searchBackground: .gray,
-            searchForeground: .white,
-            emptyIcon: "tray",
-            emptyTitle: "Empty",
-            emptyIconColor: .orange,
-            progressTint: .green,
-            destructiveActionTint: .red,
-            bottomClearance: 60)
-        #expect(config.emptyMessage == nil)
-    }
-
-    @Test("listConfig derives the inner BasicListConfig from the two forwarded fields")
-    func listConfigDerived() {
-        let config = BasicListPageConfig(
-            titleColor: .primary,
-            titleFont: .title2,
-            subtitleColor: .secondary,
-            subtitleFont: .footnote,
-            backgroundColor: .blue,
-            headerListSpacing: 12,
-            searchBackground: .gray,
-            searchForeground: .white,
-            emptyIcon: "tray",
-            emptyTitle: "Empty",
-            emptyIconColor: .orange,
-            progressTint: .green,
-            destructiveActionTint: .red,
-            bottomClearance: 80)
-        #expect(config.listConfig.destructiveActionTint == .red)
-        #expect(config.listConfig.bottomClearance == 80)
-    }
-
-    @Test("Equatable — same values are equal, different values differ")
-    func equality() {
-        func config(tint: Color) -> BasicListPageConfig {
-            BasicListPageConfig(
+    /// Facet wiring — one helper so every test varies exactly one knob.
+    private func makeConfig(
+        tint: Color = .red,
+        message: String? = "Nothing here",
+        bottomClearance: CGFloat = 60
+    ) -> BasicListPageConfig {
+        BasicListPageConfig(
+            chrome: .init(
                 titleColor: .primary,
                 titleFont: .title2,
                 subtitleColor: .secondary,
                 subtitleFont: .footnote,
                 backgroundColor: .blue,
+                headerPadding: EdgeInsets(top: 12, leading: 16, bottom: 8, trailing: 16),
                 headerListSpacing: 12,
-                searchBackground: .gray,
-                searchForeground: .white,
-                emptyIcon: "tray",
-                emptyTitle: "Empty",
-                emptyIconColor: .orange,
-                progressTint: .green,
-                destructiveActionTint: tint,
-                bottomClearance: 60)
+                progressTint: .green),
+            search: .init(background: .gray, foreground: .white),
+            emptyFallback: .init(
+                icon: "tray",
+                iconColor: .orange,
+                title: "Empty",
+                message: message),
+            list: .init(destructiveActionTint: tint, bottomClearance: bottomClearance))
+    }
+
+    @Test("Init stores the values passed in — per facet")
+    func initStoresValues() {
+        let config = makeConfig()
+        #expect(config.chrome.titleColor == .primary)
+        #expect(config.chrome.titleFont == .title2)
+        #expect(config.chrome.subtitleColor == .secondary)
+        #expect(config.chrome.subtitleFont == .footnote)
+        #expect(config.chrome.backgroundColor == .blue)
+        #expect(config.chrome.headerPadding == EdgeInsets(top: 12, leading: 16, bottom: 8, trailing: 16))
+        #expect(config.chrome.headerListSpacing == 12)
+        #expect(config.chrome.progressTint == .green)
+        #expect(config.search.background == .gray)
+        #expect(config.search.foreground == .white)
+        #expect(config.emptyFallback.icon == "tray")
+        #expect(config.emptyFallback.title == "Empty")
+        #expect(config.emptyFallback.message == "Nothing here")
+        #expect(config.emptyFallback.iconColor == .orange)
+        #expect(config.list.destructiveActionTint == .red)
+        #expect(config.list.bottomClearance == 60)
+    }
+
+    @Test("EmptyFallback without message → message nil")
+    func messageOptional() {
+        let fallback = BasicListPageConfig.EmptyFallback(icon: "tray", iconColor: .orange, title: "Empty")
+        #expect(fallback.message == nil)
+    }
+
+    @Test("list facet IS the inner BasicListConfig — forwarded, not re-derived")
+    func listDerived() {
+        let config = makeConfig(tint: .red, bottomClearance: 80)
+        #expect(config.list.destructiveActionTint == .red)
+        #expect(config.list.bottomClearance == 80)
+    }
+
+    @Test("updating — mutates a copy, the source config stays untouched")
+    func updatingMutatesCopy() {
+        let house = makeConfig()
+        let detail = house.updating {
+            $0.list.bottomClearance = 64
+            $0.emptyFallback.title = "No transactions"
+            $0.chrome.headerListSpacing = 16
         }
-        #expect(config(tint: .red) == config(tint: .red))
-        #expect(config(tint: .red) != config(tint: .blue))
+        #expect(detail.list.bottomClearance == 64)
+        #expect(detail.emptyFallback.title == "No transactions")
+        #expect(detail.chrome.headerListSpacing == 16)
+        // Source unchanged — derivation never corrupts the house config.
+        #expect(house.list.bottomClearance == 60)
+        #expect(house.emptyFallback.title == "Empty")
+        #expect(house.chrome.headerListSpacing == 12)
+    }
+
+    @Test("Equatable — same values are equal, different values differ")
+    func equality() {
+        #expect(makeConfig(tint: .red) == makeConfig(tint: .red))
+        #expect(makeConfig(tint: .red) != makeConfig(tint: .blue))
     }
 }
 
@@ -123,20 +106,18 @@ struct BasicListPageTests {
     private struct Item: Identifiable { let id: Int }
 
     private let pageConfig = BasicListPageConfig(
-        titleColor: .primary,
-        titleFont: .title2,
-        subtitleColor: .secondary,
-        subtitleFont: .footnote,
-        backgroundColor: .blue,
-        headerListSpacing: 12,
-        searchBackground: .gray,
-        searchForeground: .white,
-        emptyIcon: "tray",
-        emptyTitle: "Empty",
-        emptyIconColor: .orange,
-        progressTint: .green,
-        destructiveActionTint: .red,
-        bottomClearance: 60)
+        chrome: .init(
+            titleColor: .primary,
+            titleFont: .title2,
+            subtitleColor: .secondary,
+            subtitleFont: .footnote,
+            backgroundColor: .blue,
+            headerPadding: EdgeInsets(top: 12, leading: 16, bottom: 8, trailing: 16),
+            headerListSpacing: 12,
+            progressTint: .green),
+        search: .init(background: .gray, foreground: .white),
+        emptyFallback: .init(icon: "tray", iconColor: .orange, title: "Empty"),
+        list: .init(destructiveActionTint: .red, bottomClearance: 60))
 
     @Test("Init stores title + subtitle and wires the page config")
     func initWiring() {
@@ -221,18 +202,18 @@ struct BasicListPageTests {
         #expect(page.innerList.loadMoreMode == .pixelThreshold(150))
     }
 
-    @Test("basicPageRowSwipeActions forwards per edge — trailing and leading coexist")
+    @Test("basicPageSwipeActions forwards per edge — trailing and leading coexist")
     func swipeForwarding() {
         var page = BasicListPage(
             title: "T", items: [Item(id: 1)],
             config: pageConfig) { _ in Text("Row") }
 
-        page = page.basicPageRowSwipeActions(allowsFullSwipe: false) { _ in [] }
+        page = page.basicPageSwipeActions(allowsFullSwipe: false) { _ in [] }
         #expect(page.innerList.rowSwipeHandler != nil)
         #expect(page.innerList.rowSwipeAllowsFullSwipe == false)
         #expect(page.innerList.rowSwipeLeadingHandler == nil)
 
-        page = page.basicPageRowSwipeActions(edge: .leading) { _ in [] }
+        page = page.basicPageSwipeActions(edge: .leading) { _ in [] }
         #expect(page.innerList.rowSwipeLeadingHandler != nil)
         #expect(page.innerList.rowSwipeLeadingAllowsFullSwipe == true)
         // The trailing edge is untouched by the leading call.
@@ -317,7 +298,7 @@ struct BasicListPageTests {
     }
 
     // NOTE: `.basicPageRowTap` / `.basicPageMoveRows` / `.basicPageRefresh`
-    // / `.basicPageRowContextMenu` forward onto engine fields that are
+    // / `.basicPageContextMenu` forward onto engine fields that are
     // `private` in BasicListView (rowTapHandler, onMoveHandler,
     // onRefreshHandler, rowContextMenuHandler) — not observable from the
     // host suite without touching the engine file. Their forwarding is

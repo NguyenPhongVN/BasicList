@@ -80,7 +80,7 @@ struct ContentView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
             }
-            .onRowTap { entry in
+            .basicListRowTap { entry in
                 Haptics.tap()
                 path.append(entry)
             }

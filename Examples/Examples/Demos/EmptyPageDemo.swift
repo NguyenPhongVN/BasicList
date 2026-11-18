@@ -51,7 +51,7 @@ struct EmptyPageDemo: View {
             .padding(24)
             .frame(maxWidth: .infinity)
         }
-        .basicPageRowSwipeActions { item in
+        .basicPageSwipeActions { item in
             [BasicListSwipeAction(title: "Delete", systemImage: "trash", role: .destructive) {
                 items.removeAll { $0.id == item.id }
             }]

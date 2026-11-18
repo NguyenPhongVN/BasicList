@@ -47,12 +47,12 @@ struct FlatPageDemo: View {
         // BOTH edges: swipe left → Pin (full swipe OFF — the tap must be
         // explicit), swipe right → Delete (full swipe fires it, the handler
         // is only the confirm hand-off).
-        .basicPageRowSwipeActions { item in
+        .basicPageSwipeActions { item in
             [BasicListSwipeAction(title: "Delete", systemImage: "trash", role: .destructive) {
                 items.removeAll { $0.id == item.id }
             }]
         }
-        .basicPageRowSwipeActions(edge: .leading, allowsFullSwipe: false) { item in
+        .basicPageSwipeActions(edge: .leading, allowsFullSwipe: false) { item in
             [BasicListSwipeAction(
                 title: item.isPinned ? "Unpin" : "Pin",
                 systemImage: item.isPinned ? "pin.slash" : "pin.fill") {
@@ -61,7 +61,7 @@ struct FlatPageDemo: View {
                 }
             }]
         }
-        .basicPageRowContextMenu { item in
+        .basicPageContextMenu { item in
             Button("Duplicate \"\(item.title)\"") {
                 if let index = items.firstIndex(where: { $0.id == item.id }) {
                     items.insert(item, at: index + 1)

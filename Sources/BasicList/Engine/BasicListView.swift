@@ -31,9 +31,9 @@ import SwiftUI
 ///     AccountRowView(account)
 /// }
 /// .basicListHeader { AccountBalanceHeader() }
-/// .onRefresh { try await api.reload() }
-/// .onLoadMore { try? await api.nextPage() }
-/// .rowSwipeActions { account in deleteActions(for: account) }
+/// .basicListRefresh { try await api.reload() }
+/// .basicListLoadMore { try? await api.nextPage() }
+/// .basicListSwipeActions { account in deleteActions(for: account) }
 ///
 /// BasicListView(sections: dayGroups, config: .house) { transaction in
 ///     TransactionRowView(transaction)
@@ -242,7 +242,7 @@ public struct BasicListView<Item, Content: View>: View {
     ///
     /// Calling the modifier again with the SAME edge REPLACES that edge's
     /// handler (not append) — the last call wins.
-    public func rowSwipeActions(
+    public func basicListSwipeActions(
         edge: HorizontalEdge = .trailing,
         allowsFullSwipe: Bool = true,
         _ handler: @escaping (Item) -> [BasicListSwipeAction]
@@ -261,7 +261,7 @@ public struct BasicListView<Item, Content: View>: View {
     /// Long-press context menu per row — data in, events out: the menu is
     /// built per item, doesn't steal regular taps or the row's swipe gesture.
     /// VoiceOver: the SwiftUI contextMenu is exposed via rotor actions.
-    public func rowContextMenu(
+    public func basicListContextMenu(
         @ViewBuilder _ handler: @escaping (Item) -> some View
     ) -> Self {
         var copy = self
@@ -273,7 +273,7 @@ public struct BasicListView<Item, Content: View>: View {
     /// handler gives the row a full-area tap (contentShape) that reports the
     /// item; passing none leaves the row untouched. The tap doesn't steal the
     /// horizontal drag of swipe actions so both modifiers can coexist.
-    public func onRowTap(_ handler: @escaping (Item) -> Void) -> Self {
+    public func basicListRowTap(_ handler: @escaping (Item) -> Void) -> Self {
         var copy = self
         copy.rowTapHandler = handler
         return copy
@@ -282,10 +282,10 @@ public struct BasicListView<Item, Content: View>: View {
     /// Drag-to-reorder rows (flat list) — data in, events out: the screen
     /// passes a handler, the List reports source/destination when the user
     /// drags the handle. The handle only appears when `editMode` is
-    /// `.active` (the screen controls it via `basicEditMode`); without a
+    /// `.active` (the screen controls it via `basicListEditMode`); without a
     /// handler the list is untouched. Applies to the flat shape only —
     /// sectioned lists don't support reorder yet.
-    public func onMoveRows(_ handler: @escaping (IndexSet, Int) -> Void) -> Self {
+    public func basicListMoveRows(_ handler: @escaping (IndexSet, Int) -> Void) -> Self {
         var copy = self
         copy.onMoveHandler = handler
         return copy
@@ -293,10 +293,10 @@ public struct BasicListView<Item, Content: View>: View {
 
     #if os(iOS)
     /// Pins the List's `editMode` to the screen's binding — `.active` shows
-    /// the drag handle of `onMoveRows`, `.inactive` returns the list to
-    /// regular interaction. Without one (default) the list keeps its
+    /// the drag handle of `basicListMoveRows`, `.inactive` returns the list
+    /// to regular interaction. Without one (default) the list keeps its
     /// environment state. iOS-only: `EditMode` is unavailable on macOS.
-    public func basicEditMode(_ binding: Binding<EditMode>?) -> Self {
+    public func basicListEditMode(_ binding: Binding<EditMode>?) -> Self {
         var copy = self
         copy.editModeBinding = binding
         return copy
@@ -307,7 +307,7 @@ public struct BasicListView<Item, Content: View>: View {
     /// closure runs inside `refreshable` and the spinner ends regardless of
     /// the result (`try?` swallows the error): to present an error, handle it
     /// inside the handler (alert/state owned by the screen).
-    public func onRefresh(_ handler: @escaping () async throws -> Void) -> Self {
+    public func basicListRefresh(_ handler: @escaping () async throws -> Void) -> Self {
         var copy = self
         copy.onRefreshHandler = handler
         return copy
@@ -317,7 +317,7 @@ public struct BasicListView<Item, Content: View>: View {
     /// (engine-private, this file) + `BasicListScrollSentinel` (probe on the List
     /// body, sentinel backstops short lists, loop prevention lives on the VM
     /// side). The handler is the LAST closure so trailing syntax works freely:
-    /// `.onLoadMore { ... }`.
+    /// `.basicListLoadMore { ... }`.
     ///
     /// The handler is NON-THROWING — handle errors inside it (alert/state owned
     /// by the screen); the engine has no error surface to present them.
@@ -344,7 +344,7 @@ public struct BasicListView<Item, Content: View>: View {
     ///
     /// Calling the modifier again REPLACES the previous handler + mode (the
     /// last call wins).
-    public func onLoadMore(
+    public func basicListLoadMore(
         mode: BasicListLoadMoreMode = .pixelDefault,
         _ handler: @escaping () async -> Void
     ) -> Self {
@@ -352,6 +352,68 @@ public struct BasicListView<Item, Content: View>: View {
         copy.onLoadMoreHandler = handler
         copy.loadMoreMode = mode
         return copy
+    }
+
+    // MARK: Deprecated pre-unification names (bridge one minor version)
+
+    /// Renamed to `basicListSwipeActions` — one `basicList*` prefix for the
+    /// whole engine surface.
+    @available(*, deprecated, renamed: "basicListSwipeActions")
+    public func rowSwipeActions(
+        edge: HorizontalEdge = .trailing,
+        allowsFullSwipe: Bool = true,
+        _ handler: @escaping (Item) -> [BasicListSwipeAction]
+    ) -> Self {
+        basicListSwipeActions(edge: edge, allowsFullSwipe: allowsFullSwipe, handler)
+    }
+
+    /// Renamed to `basicListContextMenu` — one `basicList*` prefix for the
+    /// whole engine surface.
+    @available(*, deprecated, renamed: "basicListContextMenu")
+    public func rowContextMenu(
+        @ViewBuilder _ handler: @escaping (Item) -> some View
+    ) -> Self {
+        basicListContextMenu(handler)
+    }
+
+    /// Renamed to `basicListRowTap` — one `basicList*` prefix for the whole
+    /// engine surface.
+    @available(*, deprecated, renamed: "basicListRowTap")
+    public func onRowTap(_ handler: @escaping (Item) -> Void) -> Self {
+        basicListRowTap(handler)
+    }
+
+    /// Renamed to `basicListMoveRows` — one `basicList*` prefix for the whole
+    /// engine surface.
+    @available(*, deprecated, renamed: "basicListMoveRows")
+    public func onMoveRows(_ handler: @escaping (IndexSet, Int) -> Void) -> Self {
+        basicListMoveRows(handler)
+    }
+
+    #if os(iOS)
+    /// Renamed to `basicListEditMode` — one `basicList*` prefix for the whole
+    /// engine surface.
+    @available(*, deprecated, renamed: "basicListEditMode")
+    public func basicEditMode(_ binding: Binding<EditMode>?) -> Self {
+        basicListEditMode(binding)
+    }
+    #endif
+
+    /// Renamed to `basicListRefresh` — one `basicList*` prefix for the whole
+    /// engine surface.
+    @available(*, deprecated, renamed: "basicListRefresh")
+    public func onRefresh(_ handler: @escaping () async throws -> Void) -> Self {
+        basicListRefresh(handler)
+    }
+
+    /// Renamed to `basicListLoadMore` — one `basicList*` prefix for the whole
+    /// engine surface.
+    @available(*, deprecated, renamed: "basicListLoadMore")
+    public func onLoadMore(
+        mode: BasicListLoadMoreMode = .pixelDefault,
+        _ handler: @escaping () async -> Void
+    ) -> Self {
+        basicListLoadMore(mode: mode, handler)
     }
 
     // MARK: Body
@@ -512,7 +574,7 @@ private extension View {
 
     /// If the handler returns actions, attach them to the row; otherwise keep
     /// the row untouched. `allowsFullSwipe` passes through from
-    /// `.rowSwipeActions` — when true, a full swipe fires the FIRST action of
+    /// `.basicListSwipeActions` — when true, a full swipe fires the FIRST action of
     /// the edge immediately, but the handler is only a confirm hand-off
     /// (popup). Do NOT use `role: .destructive`:
     /// destructive-role + full swipe triggers the row slide-away animation

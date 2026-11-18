@@ -24,19 +24,19 @@ struct BasicListViewTests {
         .basicListHeader(mode: .pinnedTop) { Text("Pinned") }
         .basicListEmptyState { Text("Empty") }
         .basicListFooter { Text("Footer") }
-        .rowSwipeActions { _ in
+        .basicListSwipeActions { _ in
             [BasicListSwipeAction(title: "Delete", systemImage: "trash", isDestructive: true) {}]
         }
-        .rowSwipeActions(edge: .leading) { _ in
+        .basicListSwipeActions(edge: .leading) { _ in
             [BasicListSwipeAction(title: "Pin", systemImage: "pin.fill") {}]
         }
-        .rowContextMenu { _ in Button("Menu") {} }
-        .onRowTap { _ in }
-        .onMoveRows { _, _ in }
-        .onRefresh {}
-        .onLoadMore {}
-        .onLoadMore(mode: .pagesAhead(2)) {}
-        .onLoadMore(mode: .pixelThreshold(100)) {}
+        .basicListContextMenu { _ in Button("Menu") {} }
+        .basicListRowTap { _ in }
+        .basicListMoveRows { _, _ in }
+        .basicListRefresh {}
+        .basicListLoadMore {}
+        .basicListLoadMore(mode: .pagesAhead(2)) {}
+        .basicListLoadMore(mode: .pixelThreshold(100)) {}
         _ = view.body
     }
 
@@ -46,7 +46,7 @@ struct BasicListViewTests {
             Text($0)
         }
         .basicListHeader { Text("Header") }
-        .onRowTap { _ in }
+        .basicListRowTap { _ in }
         _ = view.body
     }
 
@@ -76,7 +76,7 @@ struct BasicListViewTests {
             Text("\($0.id)")
         }
         .basicListHeader { Text("Header") }
-        .rowContextMenu { _ in Button("Menu") {} }
+        .basicListContextMenu { _ in Button("Menu") {} }
         .onLoadMore {}
         _ = view.body
     }
@@ -99,8 +99,8 @@ struct BasicListViewTests {
         let view = BasicListView(items: [Item(id: 1), Item(id: 2)], config: config) {
             Text("\($0.id)")
         }
-        .onMoveRows { _, _ in }
-        .basicEditMode(Binding.constant(EditMode.active))
+        .basicListMoveRows { _, _ in }
+        .basicListEditMode(Binding.constant(EditMode.active))
         _ = view.body
     }
 
@@ -109,8 +109,8 @@ struct BasicListViewTests {
         let view = BasicListView(items: [Item(id: 1)], config: config) {
             Text("\($0.id)")
         }
-        .onMoveRows { _, _ in }
-        .basicEditMode(Binding<EditMode>?(nil))
+        .basicListMoveRows { _, _ in }
+        .basicListEditMode(Binding<EditMode>?(nil))
         _ = view.body
     }
     #endif
@@ -160,10 +160,10 @@ struct BasicListViewTests {
         #expect(view.headerMode == .pinnedTop, "re-calling basicListHeader replaces mode")
 
         // Swipe, same edge: second call replaces the handler.
-        view = view.rowSwipeActions { _ in
+        view = view.basicListSwipeActions { _ in
             [BasicListSwipeAction(title: "First", systemImage: "1") {}]
         }
-        view = view.rowSwipeActions { _ in
+        view = view.basicListSwipeActions { _ in
             [BasicListSwipeAction(title: "Second", systemImage: "2") {}]
         }
         guard let trailing = view.rowSwipeHandler else {
@@ -174,7 +174,7 @@ struct BasicListViewTests {
                 "same edge replaces the handler")
 
         // Swipe, other edge: coexists with the trailing handler, not replace.
-        view = view.rowSwipeActions(edge: .leading) { _ in
+        view = view.basicListSwipeActions(edge: .leading) { _ in
             [BasicListSwipeAction(title: "Pin", systemImage: "pin") {}]
         }
         guard let leading = view.rowSwipeLeadingHandler else {
@@ -185,13 +185,13 @@ struct BasicListViewTests {
         #expect(leading(Item(id: 1)).first?.title == "Pin")
 
         // Full-swipe opt-out is per edge — trailing keeps the default `true`.
-        view = view.rowSwipeActions(edge: .leading, allowsFullSwipe: false) { _ in [] }
+        view = view.basicListSwipeActions(edge: .leading, allowsFullSwipe: false) { _ in [] }
         #expect(view.rowSwipeAllowsFullSwipe, "trailing edge unchanged by the leading call")
         #expect(!view.rowSwipeLeadingAllowsFullSwipe, "leading edge opted out of full swipe")
 
         // Load-more: second call replaces handler + mode.
-        view = view.onLoadMore {}
-        view = view.onLoadMore(mode: .pagesAhead(3)) {}
+        view = view.basicListLoadMore {}
+        view = view.basicListLoadMore(mode: .pagesAhead(3)) {}
         #expect(view.onLoadMoreHandler != nil)
         #expect(view.loadMoreMode == .pagesAhead(3), "re-calling onLoadMore replaces mode")
     }

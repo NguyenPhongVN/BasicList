@@ -70,7 +70,7 @@ private struct LoadMoreHarness: View {
         ) { row in
             Text(row.label).frame(height: 60)
         }
-        .onLoadMore(mode: mode) {
+        .basicListLoadMore(mode: mode) {
             vm.fires += 1
             vm.log("FIRE #\(vm.fires) (page=\(vm.page))")
             if vm.page < vm.lastPage {
@@ -142,11 +142,11 @@ private struct RefreshInterplayHarness: View {
             items: vm.items,
             config: BasicListConfig(destructiveActionTint: .red, bottomClearance: 0)
         ) { Text($0.label).frame(height: 60) }
-        .onRefresh {
+        .basicListRefresh {
             vm.log("REFRESH (handler)")
             vm.replaceWithPage1(rows: 6)
         }
-        .onLoadMore(mode: .pixelThreshold(600)) {
+        .basicListLoadMore(mode: .pixelThreshold(600)) {
             vm.fires += 1
             vm.log("FIRE #\(vm.fires) (page=\(vm.page))")
             if vm.page < vm.lastPage {
