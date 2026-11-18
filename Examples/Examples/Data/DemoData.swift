@@ -41,10 +41,15 @@ private let demoFixtures: [DemoFixture] = [
 
 /// Fixture item (1-based index, wraps around) — `page` namespaces the id so
 /// paged demos keep identity stable WITHIN a page, distinct ACROSS pages.
-func demoItem(at index: Int, page: Int = 0, note: String? = nil) -> DemoItem {
+/// `row` overrides the id slot when the CONTENT index may repeat (e.g. the
+/// date-pager wheel maps 10 rows onto 8 fixtures — identity must follow the
+/// ROW POSITION, not which fixture the row displays, or ids collide).
+func demoItem(
+    at index: Int, page: Int = 0, note: String? = nil, row: Int? = nil
+) -> DemoItem {
     let fixture = demoFixtures[(max(index, 1) - 1) % demoFixtures.count]
     return DemoItem(
-        id: page * 100 + max(index, 1),
+        id: page * 100 + (row ?? max(index, 1)),
         title: fixture.title,
         note: note ?? fixture.note,
         symbol: fixture.symbol,

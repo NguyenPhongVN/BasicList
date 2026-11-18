@@ -46,12 +46,13 @@ struct DatePagerPageDemo: View {
     }
 
     /// Per-page data — the fixture wheel rotates by page, so every period
-    /// shows different rows (a paged page is a different window of data,
-    /// not the same rows with a new label).
+    /// shows different rows. Identity follows the ROW (10 rows over only 8
+    /// fixtures — a fixture-based id would collide: rows 9/10 sharing the
+    /// fixture of rows 1/2); the content follows the wheel.
     private var items: [DemoItem] {
         (1...10).map { row in
             let rotated = ((row + pageIndex * 3 - 1) % 8 + 8) % 8 + 1
-            return demoItem(at: rotated, page: pageIndex, note: windowText)
+            return demoItem(at: rotated, page: pageIndex, note: windowText, row: row)
         }
     }
 
