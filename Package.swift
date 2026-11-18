@@ -30,10 +30,6 @@ let package = Package(
         // Targets can depend on other targets in this package and products from dependencies.
         .target(
             name: "BasicList",
-            exclude: [
-                // Doc module — not a resource to bundle.
-                "README.md"
-            ],
             swiftSettings: [
                 .enableUpcomingFeature("ApproachableConcurrency")
             ],

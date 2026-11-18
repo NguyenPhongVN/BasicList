@@ -4,7 +4,7 @@ import UIKit
 import Testing
 @testable import BasicList
 
-// MARK: - Load-more simulator tests (Docs/LoadMoreVerification.md §3/§5)
+// MARK: - Load-more simulator tests (package README — load-more mechanics & verification)
 //
 // Runs ONLY on an iOS simulator host (`xcodebuild test -destination
 // 'platform=iOS Simulator,...'`). On macOS (`swift test`) this file compiles

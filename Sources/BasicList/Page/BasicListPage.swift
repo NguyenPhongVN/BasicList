@@ -6,7 +6,7 @@ import SwiftUI
 // (title + subtitle + leading/trailing slots), an optional inline search
 // field, an optional loading row — and the `BasicListView` engine filling
 // the rest of the screen. Modeled on how real list screens compose (see the
-// module README): the page owns the chrome, the engine owns the list, the
+// package README): the page owns the chrome, the engine owns the list, the
 // screen owns the data and the events.
 //
 // COLORS/METRICS: passed in via `BasicListPageConfig` — the page reads no

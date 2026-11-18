@@ -38,7 +38,7 @@ public enum BasicListLoadMoreMode: Equatable, Sendable {
     ///
     /// ⚠️ "viewport" = `ScrollGeometry.containerSize`, which is NOT stable
     /// across embeddings (782/724/702/844 measured — see
-    /// `Docs/LoadMoreVerification.md` §2, F4 "PARTLY FIXED"): when insets or
+    /// the package README — load-more verification, F4): when insets or
     /// margins shrink the real visible area, the region can be LARGER than N
     /// visible screens. Fixed absolute semantics → use `.pixelThreshold`.
     case pagesAhead(Int)
@@ -55,7 +55,7 @@ public enum BasicListLoadMoreMode: Equatable, Sendable {
 /// Per-list load-more gate — at most ONE fire per cooldown window across all
 /// trigger sources (probe transition, List content-size estimate steps,
 /// sentinel `onAppear`). Measured duplicates arrive 1–400 ms apart
-/// (`Docs/LoadMoreVerification.md` F2/F3) — a window gate collapses them to
+/// (package README — load-more, F2/F3) — a window gate collapses them to
 /// one fire. Mechanical state, not business state.
 ///
 /// Time source: `ContinuousClock` — a cooldown is elapsed TIME, so it must be
@@ -67,7 +67,7 @@ package final class BasicListLoadGate {
     /// Cooldown window between two fires, in seconds. Injectable so tests
     /// don't wait on the production value — production uses the measured
     /// default: duplicate sources land 1–400 ms apart
-    /// (`Docs/LoadMoreVerification.md` F2/F3).
+    /// (package README — load-more, F2/F3).
     package let cooldown: TimeInterval
 
     private var lastFireAt: ContinuousClock.Instant?
@@ -265,7 +265,7 @@ public struct BasicListSpacer: View {
 ///
 /// Inside the engine the sentinel shares the list's fire gate — the probe's
 /// attach transition and the sentinel's `onAppear` collapse into at most one
-/// fire per cooldown window (`Docs/LoadMoreVerification.md` §5). Standalone
+/// fire per cooldown window (package README — load-more). Standalone
 /// (no gate) it fires unconditionally.
 ///
 /// Role: backstops the attach-time fire for short lists. The primary load-more

@@ -43,10 +43,6 @@ jobs:
   test:
     name: Test (iOS simulator)
     runs-on: macos-15
-    # The failure path commits diagnostics back to main so diagnosis works
-    # without any repository credentials on the reading side.
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -68,7 +64,7 @@ jobs:
             swift --version 2>&1
             xcrun simctl list runtimes | grep iOS
             echo '```'
-          } | tee -a diagnostics.md
+          } >> "$GITHUB_STEP_SUMMARY"
 
       # Pick the simulator FIRST — the a11y step below reads the chosen
       # device's name.
@@ -116,7 +112,7 @@ jobs:
               echo '```'
               tail -120 xc_hostsuites.log
               echo '```'
-            } | tee -a diagnostics.md
+            } >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
 
@@ -130,7 +126,7 @@ jobs:
               echo '```'
               tail -120 xc_loadmore.log
               echo '```'
-            } | tee -a diagnostics.md
+            } >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
 
@@ -144,22 +140,7 @@ jobs:
               echo '```'
               tail -120 xc_interaction.log
               echo '```'
-            } | tee -a diagnostics.md
+            } >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
 
-      # Diagnostics channel — the job log API needs admin auth and
-      # GITHUB_STEP_SUMMARY is not reflected in the check-run output; the
-      # failure path commits diagnostics.md (+ raw logs) straight into the
-      # repository ([skip ci] prevents a CI loop).
-      - name: Commit diagnostics
-        if: failure()
-        run: |
-          git config user.name "ci-diagnostics"
-          git config user.email "actions@github.com"
-          # `git add <explicit-paths>` dies when ANY pathspec is missing (the
-          # swift-build logs no longer exist in this job) and `|| true` swallows
-          # it — stage everything present instead.
-          git add -A || true
-          git commit -m "ci: diagnostics bundle [skip ci]" || true
-          git push || true

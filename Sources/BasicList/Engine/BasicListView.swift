@@ -10,7 +10,7 @@ import SwiftUI
 //
 // COLORS/METRICS: passed in via `BasicListConfig` — the engine stays pure
 // SwiftUI and reads no design layer. Which view to pick, the config, the
-// load-more mechanics and the mandatory rules — see the module README.md.
+// load-more mechanics and the mandatory rules — see the package README.md.
 
 /// Base "array in — item out" for house lists.
 ///
