@@ -75,10 +75,17 @@ jobs:
           if xcrun simctl list devices available | grep -q "$PREFERRED ("; then
             NAME="$PREFERRED"
           else
-            NAME=$(xcrun simctl list devices available | awk -F ' \\(' '/iPhone/{sub(/^ +/, "", $1); print $1; exit}')
+            # NOT `awk -F ' \('` — macOS BWK awk rejects `\(` in the field
+            # separator ("illegal primary"); the sed form is awk-free.
+            NAME=$( (xcrun simctl list devices available | grep 'iPhone' | head -1 | sed -E 's/^[[:space:]]*//; s/ \([A-F0-9]{8}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{12}\).*$//') || true)
           fi
-          echo "Picked simulator: $NAME"
+          # UDID from the AVAILABLE list — destinations resolve by id= below:
+          # a name= destination implies `OS:latest`, which mismatches any
+          # device pinned to an older runtime.
+          UDID=$(xcrun simctl list devices available | grep -F "$NAME (" | grep -oE '[A-F0-9]{8}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{12}' | head -1 || true)
+          echo "Picked simulator: $NAME ($UDID)"
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
 
       # The interaction suite inspects the a11y tree, which SwiftUI only
       # materializes when accessibility is enabled. On iOS 26.5+ the harness
@@ -88,7 +95,7 @@ jobs:
       - name: Enable accessibility on the simulator
         run: |
           NAME="${{ steps.sim.outputs.name }}"
-          UDID=$(xcrun simctl list devices | grep "$NAME (" | grep -oE '[A-F0-9]{8}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{12}' | head -1)
+          UDID="${{ steps.sim.outputs.udid }}"
           echo "Enabling accessibility on $NAME ($UDID)"
           xcrun simctl boot "$UDID" 2>/dev/null || true
           xcrun simctl spawn "$UDID" defaults write com.apple.Accessibility AccessibilityEnabled -bool YES
@@ -97,10 +104,30 @@ jobs:
 
       # Host suites (deterministic unit tests — vocabulary, gate, wiring) on
       # the simulator.
+      #
+      # All three test steps run against the PACKAGE's own workspace — NOT the
+      # repo-root SC.xcworkspace: through Examples.xcodeproj only the linked
+      # PRODUCT ("BasicList") is a blueprint, so the SC workspace's "BasicList"
+      # scheme has no test action at all. The package workspace autogenerates
+      # the scheme WITH the test action. Its contents.xcworkspacedata is
+      # gitignored — materialize it first.
+      - name: Materialize the package workspace (gitignored)
+        run: |
+          mkdir -p .swiftpm/xcode/package.xcworkspace
+          cat > .swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata <<'XML'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <Workspace
+             version = "1.0">
+             <FileRef
+                location = "self:">
+             </FileRef>
+          </Workspace>
+          XML
+
       - name: Test (host suites on simulator)
         run: |
-          if ! xcodebuild test -scheme BasicList \
-               -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
+          if ! xcodebuild test -workspace .swiftpm/xcode/package.xcworkspace -scheme BasicList \
+               -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
                -only-testing:BasicListTests/BasicListViewTests \
                -only-testing:BasicListTests/BasicListConfigTests \
                -only-testing:BasicListTests/BasicListSectionTests \
@@ -118,8 +145,8 @@ jobs:
 
       - name: Test (load-more simulator suite)
         run: |
-          if ! xcodebuild test -scheme BasicList \
-               -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
+          if ! xcodebuild test -workspace .swiftpm/xcode/package.xcworkspace -scheme BasicList \
+               -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
                -only-testing:BasicListTests/LoadMoreSimulatorTests > xc_loadmore.log 2>&1; then
             {
               echo "### LoadMore simulator suite — FAILED, last 120 lines"
@@ -132,8 +159,8 @@ jobs:
 
       - name: Test (interaction simulator suite)
         run: |
-          if ! xcodebuild test -scheme BasicList \
-               -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
+          if ! xcodebuild test -workspace .swiftpm/xcode/package.xcworkspace -scheme BasicList \
+               -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
                -only-testing:BasicListTests/InteractionSimulatorTests > xc_interaction.log 2>&1; then
             {
               echo "### Interaction simulator suite — FAILED, last 120 lines"
