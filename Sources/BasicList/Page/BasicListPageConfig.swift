@@ -184,13 +184,22 @@ public struct BasicListPageConfig: Sendable, Equatable {
         return copy
     }
 
+    /// The header padding of the PRE-facet look, byte-for-byte (16
+    /// horizontal, 12 top, 8 bottom) — the deprecated flat init bridges it
+    /// because pre-facet call sites never passed padding. Lives exactly as
+    /// long as the bridge: deleted in 1.2.0 together with the deprecated
+    /// init (README — Config, evolution policy, deprecation bridge).
+    private static let legacyHeaderPadding =
+        EdgeInsets(top: 12, leading: 16, bottom: 8, trailing: 16)
+
     /// Deprecated flat init — kept so pre-facet call sites keep compiling.
-    /// The header padding falls back to the historical chrome paddings
-    /// (16 horizontal, 12 top, 8 bottom) — byte-for-byte the old look.
+    /// The header padding falls back to `legacyHeaderPadding` — byte-for-byte
+    /// the old look.
     ///
     /// - Warning: new fields never land here. Migrate to
     ///   `init(chrome:search:emptyFallback:list:)`.
-    @available(*, deprecated, message: "Use init(chrome:search:emptyFallback:list:) and derive variants with .updating.")
+    @available(*, deprecated,
+               message: "Use init(chrome:search:emptyFallback:list:) and derive variants with .updating. Deprecated in 1.0.0 — removed in 1.2.0.")
     public init(
         titleColor: Color,
         titleFont: Font,
@@ -214,7 +223,7 @@ public struct BasicListPageConfig: Sendable, Equatable {
             subtitleColor: subtitleColor,
             subtitleFont: subtitleFont,
             backgroundColor: backgroundColor,
-            headerPadding: EdgeInsets(top: 12, leading: 16, bottom: 8, trailing: 16),
+            headerPadding: Self.legacyHeaderPadding,
             headerListSpacing: headerListSpacing,
             progressTint: progressTint)
         self.search = Search(background: searchBackground, foreground: searchForeground)

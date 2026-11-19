@@ -192,9 +192,9 @@ public struct BasicListView<Item, Content: View>: View {
     /// Calling the modifier again REPLACES the previous header + mode (the
     /// last call wins).
     ///
-    /// ⚠️ `.pinnedTop` + sectioned is UNVERIFIED: the pinned header is a
-    /// Section wrapping the groups' Sections — this combination has no caller
-    /// yet; avoid it until it's needed and tested.
+    /// `.pinnedTop` + sectioned is verified: the pinned header is a Section
+    /// wrapping the groups' Sections, pinned by `renderPinnedHeaderSectioned`
+    /// (InteractionSimulatorTests) on iOS 18.5 and iOS 26.5 alike.
     public func basicListHeader(
         mode: BasicListHeaderMode = .scrollsWithContent,
         @ViewBuilder _ builder: @escaping () -> some View
@@ -352,68 +352,6 @@ public struct BasicListView<Item, Content: View>: View {
         copy.onLoadMoreHandler = handler
         copy.loadMoreMode = mode
         return copy
-    }
-
-    // MARK: Deprecated pre-unification names (bridge one minor version)
-
-    /// Renamed to `basicListSwipeActions` — one `basicList*` prefix for the
-    /// whole engine surface.
-    @available(*, deprecated, renamed: "basicListSwipeActions")
-    public func rowSwipeActions(
-        edge: HorizontalEdge = .trailing,
-        allowsFullSwipe: Bool = true,
-        _ handler: @escaping (Item) -> [BasicListSwipeAction]
-    ) -> Self {
-        basicListSwipeActions(edge: edge, allowsFullSwipe: allowsFullSwipe, handler)
-    }
-
-    /// Renamed to `basicListContextMenu` — one `basicList*` prefix for the
-    /// whole engine surface.
-    @available(*, deprecated, renamed: "basicListContextMenu")
-    public func rowContextMenu(
-        @ViewBuilder _ handler: @escaping (Item) -> some View
-    ) -> Self {
-        basicListContextMenu(handler)
-    }
-
-    /// Renamed to `basicListRowTap` — one `basicList*` prefix for the whole
-    /// engine surface.
-    @available(*, deprecated, renamed: "basicListRowTap")
-    public func onRowTap(_ handler: @escaping (Item) -> Void) -> Self {
-        basicListRowTap(handler)
-    }
-
-    /// Renamed to `basicListMoveRows` — one `basicList*` prefix for the whole
-    /// engine surface.
-    @available(*, deprecated, renamed: "basicListMoveRows")
-    public func onMoveRows(_ handler: @escaping (IndexSet, Int) -> Void) -> Self {
-        basicListMoveRows(handler)
-    }
-
-    #if os(iOS)
-    /// Renamed to `basicListEditMode` — one `basicList*` prefix for the whole
-    /// engine surface.
-    @available(*, deprecated, renamed: "basicListEditMode")
-    public func basicEditMode(_ binding: Binding<EditMode>?) -> Self {
-        basicListEditMode(binding)
-    }
-    #endif
-
-    /// Renamed to `basicListRefresh` — one `basicList*` prefix for the whole
-    /// engine surface.
-    @available(*, deprecated, renamed: "basicListRefresh")
-    public func onRefresh(_ handler: @escaping () async throws -> Void) -> Self {
-        basicListRefresh(handler)
-    }
-
-    /// Renamed to `basicListLoadMore` — one `basicList*` prefix for the whole
-    /// engine surface.
-    @available(*, deprecated, renamed: "basicListLoadMore")
-    public func onLoadMore(
-        mode: BasicListLoadMoreMode = .pixelDefault,
-        _ handler: @escaping () async -> Void
-    ) -> Self {
-        basicListLoadMore(mode: mode, handler)
     }
 
     // MARK: Body

@@ -11,9 +11,15 @@ import SwiftUI
 /// - `.scrollsWithContent`: the header scrolls with the content (default).
 /// - `.pinnedTop`: pinned to the top — sticky like a UIKit supplementary view.
 ///
-/// Non-exhaustive by convention: this package is source-distributed, so new
-/// cases may be added in a minor version — avoid exhaustive `switch` over
-/// this mode type (use `if case` or keep a `default` branch).
+/// Non-exhaustive by convention — the contract, stated precisely:
+/// new cases MAY be added in MINOR versions. The package is
+/// source-distributed (consumers compile the sources — there is no
+/// library-evolution resilience, so `@frozen` is meaningless here), which
+/// means a new case is a COMPILE ERROR for every exhaustive `switch`, and
+/// nothing in the language can soften that. The enforcement is therefore
+/// procedural, not compiler-based: every added case is announced in the
+/// release notes, and call sites keep a `default` branch (or match with
+/// `if case`) instead of switching exhaustively.
 public enum BasicListHeaderMode: Equatable, Sendable {
     case scrollsWithContent
     case pinnedTop
@@ -23,9 +29,11 @@ public enum BasicListHeaderMode: Equatable, Sendable {
 /// exclusive BY TYPE: there is no combination where one silently overrides
 /// the other.
 ///
-/// Non-exhaustive by convention: this package is source-distributed, so new
-/// cases may be added in a minor version — avoid exhaustive `switch` over
-/// this mode type (use `if case` or keep a `default` branch).
+/// Non-exhaustive by convention — same precise contract as
+/// `BasicListHeaderMode`: new cases MAY be added in MINOR versions
+/// (announced in the release notes), the package is source-distributed so a
+/// new case is a compile error for every exhaustive `switch`, and call
+/// sites keep a `default` branch (or match with `if case`).
 public enum BasicListLoadMoreMode: Equatable, Sendable {
     /// Static pixel threshold — fires when the viewport is within this many
     /// points of the content bottom. The package default is
@@ -168,7 +176,10 @@ public struct BasicListSection<Item> {
 /// dedicated language for data-destroying actions; regular actions keep the
 /// system default tint.
 ///
-/// Non-exhaustive by convention — new roles may be added in minor versions.
+/// Non-exhaustive by convention — same precise contract as
+/// `BasicListHeaderMode`: new roles may be added in MINOR versions
+/// (announced in the release notes), exhaustive `switch`es break on a new
+/// case, call sites keep a `default` branch.
 public enum BasicListActionRole: Hashable, Sendable {
     case destructive
 }

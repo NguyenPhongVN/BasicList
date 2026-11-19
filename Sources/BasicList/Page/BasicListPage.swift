@@ -418,28 +418,6 @@ public struct BasicListPage<Item, Content: View>: View {
         return copy
     }
 
-    // MARK: Deprecated pre-unification names (bridge one minor version)
-
-    /// Renamed to `basicPageSwipeActions` — the page mirrors the engine's
-    /// `basicList*` surface mechanically.
-    @available(*, deprecated, renamed: "basicPageSwipeActions")
-    public func basicPageRowSwipeActions(
-        edge: HorizontalEdge = .trailing,
-        allowsFullSwipe: Bool = true,
-        _ handler: @escaping (Item) -> [BasicListSwipeAction]
-    ) -> Self {
-        basicPageSwipeActions(edge: edge, allowsFullSwipe: allowsFullSwipe, handler)
-    }
-
-    /// Renamed to `basicPageContextMenu` — the page mirrors the engine's
-    /// `basicList*` surface mechanically.
-    @available(*, deprecated, renamed: "basicPageContextMenu")
-    public func basicPageRowContextMenu(
-        @ViewBuilder _ handler: @escaping (Item) -> some View
-    ) -> Self {
-        basicPageContextMenu(handler)
-    }
-
     // MARK: Body
 
     public var body: some View {

@@ -26,9 +26,13 @@ Standalone package, pure SwiftUI, **zero dependencies** — **reads no app desig
 
 | | |
 |---|---|
-| Platforms | iOS 26+ · macOS 26+ · tvOS 26+ · watchOS 26+ · visionOS 26+ |
+| Platforms | iOS 18+ · macOS 15+ · tvOS 18+ · watchOS 11+ · visionOS 2+ |
 | Swift | tools 6.2, Swift 6 mode, `ApproachableConcurrency` |
 | Dependencies | **NONE** — pure SwiftUI |
+
+> **Why 18/15?** The floors are the API-true minimums: the newest OS-bound
+> API is `onScrollGeometryChange` (the load-more probe, iOS 18 wave). Nothing
+> in the sources needs a newer OS.
 
 > **Platform note**: tvOS & watchOS build (verified via `xcodebuild` against the
 > simulator SDKs) but with reduced behavior — `swipeActions` doesn't exist there, so
@@ -268,6 +272,10 @@ Changing the look of every list in the app means editing exactly that one wiring
 
 **Evolution policy** — the config structs are the library's main semver surface and evolve by ONE rule: a new field appends to its init at the END with a default (labeled call sites never break, no init overload is ever created). Renaming or repurposing an existing parameter is the only forbidden move.
 
+**Enum cases** — `BasicListHeaderMode`, `BasicListLoadMoreMode` and `BasicListActionRole` are non-exhaustive by convention: a new case may land in a MINOR version, announced in the release notes. The package is source-distributed (no library-evolution resilience — `@frozen` is meaningless here), so a new case is a compile error for every exhaustive `switch` and no language feature can soften it; call sites therefore keep a `default` branch (or match with `if case`).
+
+**Deprecation bridge** — every deprecated API carries its removal version in the deprecation message: deprecated in 1.0.0 → removed in 1.2.0 (one full minor bridge). The renamed engine/page methods live together in ONE file (`Sources/BasicList/BasicListDeprecatedBridge.swift`) — the 1.2.0 release deletes that file wholesale (plus the deprecated flat init of `BasicListPageConfig`, which stays in its own file because an out-of-file extension can't assign stored properties). `@available(obsoleted:)` is deliberately NOT used — in source distribution the attribute reacts to OS deployment targets, not package versions, so the file itself is the enforcement.
+
 ## Public API
 
 ### Engine
@@ -324,15 +332,16 @@ Changing the look of every list in the app means editing exactly that one wiring
 3. **Fire gate** — at most ONE fire per 400 ms cooldown window (`ContinuousClock`, engine-side `BasicListLoadGate`) across all trigger sources: duplicate sources land 1–400 ms apart; a blocked legitimate chain fire RETRIES after the window against the CURRENT geometry (never strands the last page, never fires after the user left). On disappear the probe invalidates pending retries against dead geometry.
 4. **Loop prevention lives on the caller side (VM)**: `inFlight` blocks concurrent fires, `exhausted` skips when out of pages — probe/sentinel keep no state.
 
-Measured invariants (iPhone 18 Pro Max simulator, `LoadMoreSimulatorTests`): the trigger lands exactly at the configured threshold in every embedding; one load per region entry; attaching a short list fires once; exhaustion stops clean; idle is silent. **Chain length beyond one entry is runtime-dependent** (List estimate drift differs per OS) — design invariants assert on every runtime, exact baselines are pinned per device.
+Measured invariants (iPhone 18 Pro Max simulator, `LoadMoreSimulatorTests`): the trigger lands exactly at the configured threshold in every embedding; one load per region entry; attaching a short list fires once; exhaustion stops clean; idle is silent. **Chain length beyond one entry is runtime-dependent** (List estimate drift differs per OS) — design invariants assert on every runtime, exact baselines are pinned per device AND runtime: the strict per-step pins (B1 chain `[2, 3]`, B8 region crossing) run on iOS 26.x (the CI runtime); on iOS 18.x the same suites assert the design invariants only (measured 2026-11-19: B1 chain `[2, 3, 4]`, B8 crosses early — estimate drift + the documented `containerSize` caveat, F4).
 
-Re-run the simulator suite:
+Re-run the FULL suite locally — one command mirroring the CI pipeline (host suites + both simulator suites, same invocation isolation; the script also writes the a11y defaults the interaction suite needs):
 
 ```bash
-xcodebuild test -scheme BasicList \
-  -destination 'platform=iOS Simulator,name=iPhone 18 Pro Max' \
-  -only-testing:BasicListTests/LoadMoreSimulatorTests
+Scripts/run-all-tests.sh                        # auto-picks an available iPhone simulator
+Scripts/run-all-tests.sh "iPhone 17 Pro Test"   # or name one / set SIMULATOR_NAME
 ```
+
+⚠️ A green `swift test` alone covers only the macOS-host wiring/semantics suites (43 tests) — the render, interaction and load-more timing behavior lives in the two iOS-only simulator suites (`#if os(iOS)`) and needs `xcodebuild`. CI runs the three xcodebuild invocations separately (the suites are `@MainActor` with blocking RunLoop pumps — one invocation interleaves their measurement windows, CI run #11).
 
 Real-app acceptance (~3 minutes): log inside the load-more handler → scroll slowly on one screen with a tab bar and one full-screen → exactly ONE log per region entry, fire distance ≈ threshold on both; a short list opens with exactly one fire; scrolling stops → logs stop; standing still fires nothing.
 
@@ -353,7 +362,8 @@ Live demos live in the `Examples/` app at the repo root (open `SC.xcworkspace`):
 ```
 Sources/BasicList/
 ├── Engine/   — BasicListView · BasicPlainList · BasicListConfig · BasicListSupport
-└── Page/     — BasicListPage · BasicListPageConfig
+├── Page/     — BasicListPage · BasicListPageConfig
+└── BasicListDeprecatedBridge.swift — ALL deprecated names; deleted wholesale in 1.2.0
 ```
 
 One module, two layers — folders are organizational only. The page forwards the engine's surface, so the shared vocabulary stays engine-side.

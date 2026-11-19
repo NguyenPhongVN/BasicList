@@ -12,11 +12,16 @@ import PackageDescription
 let package = Package(
     name: "BasicList",
     platforms: [
-        .iOS(.v26),
-        .macOS(.v26),
-        .tvOS(.v26),
-        .watchOS(.v26),
-        .visionOS(.v26)
+        // API-true minimums — the newest OS-bound API the package uses is
+        // `onScrollGeometryChange` (the load-more probe): iOS 18 / macOS 15 /
+        // tvOS 18 / watchOS 11 / visionOS 2. Nothing in the sources needs a
+        // newer OS; the old .v26 floors were the dev environment, not a real
+        // requirement. Bumping a floor back up is a BREAKING change (major).
+        .iOS(.v18),
+        .macOS(.v15),
+        .tvOS(.v18),
+        .watchOS(.v11),
+        .visionOS(.v2)
     ],
     products: [
         // Products define the executables and libraries a package produces, making them visible to other packages.

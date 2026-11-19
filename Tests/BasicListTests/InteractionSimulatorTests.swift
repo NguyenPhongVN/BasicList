@@ -270,5 +270,29 @@ struct InteractionSimulatorTests {
         #expect(elements(labeled: "Nothing here yet", in: loadedWindow).isEmpty,
                 "empty-state must not render once the list has data")
     }
+
+    // MARK: pinned header + sectioned shape
+
+    @Test("Pinned header + sectioned — the previously-unverified combo renders")
+    func renderPinnedHeaderSectioned() {
+        let sections: [BasicListSection<IRow>] = [
+            BasicListSection(section: "Today", items: [IRow(id: 1, label: "row 1")]) {
+                Text("Section header")
+            }
+        ]
+        let window = attach(BasicListView(sections: sections, config: config) { row in
+            Text(row.label)
+        }
+        .basicListHeader(mode: .pinnedTop) { Text("Demo header") })
+
+        activateA11y()
+
+        #expect(!elements(labeled: "Demo header", in: window).isEmpty,
+                "the pinned header must render over a sectioned list")
+        #expect(!elements(labeled: "Section header", in: window).isEmpty,
+                "the group's sticky header must render under the pinned header")
+        #expect(!elements(labeled: "row 1", in: window).isEmpty,
+                "rows must render under the pinned header")
+    }
 }
 #endif
